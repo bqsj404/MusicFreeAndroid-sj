@@ -2,19 +2,28 @@ name: Beta 构建
 
 on:
   push:
-    branches: [dev]
+    # 仓库默认分支是 sj；若你另建 dev 分支沿用上游流程，这里也已放行
+    branches: [sj, dev]
     paths: ['package.json']
   workflow_dispatch:
     inputs:
       force_build:
-        description: '强制构建 Beta 版本'
+        description: '强制构建 Beta 版本（跳过版本号格式检查）'
         required: false
-        default: 'false'
+        default: false
         type: boolean
+
+# GITHUB_TOKEN 最小权限：构建只需要读代码
+permissions:
+  contents: read
+
+# 同一分支重复触发时取消上一次，避免构建排队堆积
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-version:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       should_build: ${{ steps.version_check.outputs.should_build }}
@@ -25,28 +34,38 @@ jobs:
 
       - name: Check version format
         id: version_check
+        env:
+          # 用 env 传值给 shell，而不是把 ${{ }} 内插进脚本，避免表达式注入
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE_BUILD: ${{ inputs.force_build }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $VERSION"
-          
-          # 检查版本是否符合 -beta.xx 格式
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # 版本号形如 0.7.0-beta.3 才视为 Beta 包
           if [[ $VERSION =~ -beta\.[0-9]{1,2}$ ]]; then
             echo "✅ Version matches beta format: $VERSION"
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force_build }}" == "true" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$FORCE_BUILD" == "true" ]]; then
             echo "🔧 Force build triggered by workflow_dispatch"
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Version does not match beta format or not forced: $VERSION"
-            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "❌ Version is not -beta.NN and force_build is off: $VERSION"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
           fi
 
   build-beta:
     needs: check-version
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # secrets 不能直接写在 if 里：提到 job 级 env，step 的 if 才能读到
+      RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+      RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,7 +79,7 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
-        with: 
+        with:
           node-version: 20
           cache: 'npm'
 
@@ -77,19 +96,11 @@ jobs:
             ${{ runner.os }}-rn-
 
       - name: Install Dependencies
-        run: npm ci --prefer-offline --no-audit      
-        
+        run: npm ci --prefer-offline --no-audit
+
       - name: Setup Keystore (if secrets available)
-        env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        if: env.RELEASE_KEYSTORE_BASE64 != ''
         run: |
-          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "::warning::RELEASE_KEYSTORE_BASE64 is not configured, skip keystore setup"
-            exit 0
-          fi
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
           cat > android/keystore.properties << EOF
           RELEASE_STORE_FILE=release.keystore
@@ -103,7 +114,7 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Beta APK
-        run: | 
+        run: |
           cd android
           ./gradlew assembleRelease --parallel --build-cache --configure-on-demand
 
