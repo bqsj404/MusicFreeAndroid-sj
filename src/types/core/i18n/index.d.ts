@@ -203,6 +203,19 @@ export interface ILanguageData {
     "downloading.downloadStatus.downloadProgress": string; // 下载进度
     "downloading.downloadStatus.pending": string; // 等待中
     "downloading.downloadStatus.preparing": string; // 准备中
+    "downloading.filter.all": string;
+    "downloading.filter.active": string;
+    "downloading.filter.completed": string;
+    "downloading.filter.failed": string;
+    "downloading.action.pause": string;
+    "downloading.action.resume": string;
+    "downloading.action.retry": string;
+    "downloading.action.discard": string;
+    "downloading.action.clearInactive": string;
+    "downloading.status.paused": string;
+    "downloading.status.missing": string;
+    "downloading.empty": string;
+    "downloading.clearDone": string;
 
     // 艺术家详情相关
     "artistDetail.fansCount": string; // 粉丝数量

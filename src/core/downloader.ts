@@ -3,6 +3,8 @@ import pathConst from "@/constants/pathConst";
 import { IAppConfig } from "@/types/core/config";
 import { IInjectable } from "@/types/infra";
 import { addFileScheme, escapeCharacter, mkdirR } from "@/utils/fileUtils";
+import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
+import { safeParse } from "@/utils/jsonUtil";
 import { errorLog } from "@/utils/log";
 import { patchMediaExtra } from "@/utils/mediaExtra";
 import { getMediaUniqueKey, isSameMediaItem } from "@/utils/mediaUtils";
@@ -13,10 +15,42 @@ import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { nanoid } from "nanoid";
 import path from "path-browserify";
 import { useEffect, useState } from "react";
-import { copyFile, downloadFile, exists, unlink } from "react-native-fs";
+import {
+    copyFile,
+    downloadFile,
+    exists,
+    stopDownload,
+    unlink,
+} from "react-native-fs";
 import LocalMusicSheet from "./localMusicSheet";
-import { registerExistingFile } from "./mediaFileRegistry";
+import { getAllMediaFiles, registerExistingFile } from "./mediaFileRegistry";
 import { IPluginManager } from "@/types/core/pluginManager";
+
+/**
+ * 下载任务的持久化存储（D11）。
+ *
+ * 原实现把任务只放在内存 `Map` 里，应用一重启就全丢 —— 下载到一半的任务
+ * 既不会继续也不会显示。这里把「未完成任务」与「待下载队列」落盘，
+ * 启动时恢复；「已完成」的记录则**不落这里**，而是以
+ * `mediaFileRegistry` 里 source=download 的文件真值为准（单一事实来源）。
+ */
+const downloadStore = getOrCreateMMKV("download.state");
+const PERSIST_TASKS_KEY = "dl:tasks";
+const PERSIST_QUEUE_KEY = "dl:queue";
+
+/** 落盘用的精简任务结构（剔除 jobId 等运行时字段） */
+interface IPersistedTask {
+    key: string;
+    status: DownloadStatus;
+    filename: string;
+    quality?: IMusic.IQualityKey;
+    fileSize?: number;
+    downloadedSize?: number;
+    errorReason?: DownloadFailReason;
+    musicItem: IMusic.IMusicItem;
+    updatedAt: number;
+}
+
 
 
 export enum DownloadStatus {
@@ -26,10 +60,40 @@ export enum DownloadStatus {
     Preparing,
     // 下载中
     Downloading,
+    // 已暂停（D11）
+    Paused,
     // 下载完成
     Completed,
     // 下载失败
     Error
+}
+
+/**
+ * 下载记录（D11「单列表三类记录」的统一视图）。
+ *
+ * 三种 kind 合并成一个列表展示，由 UI 决定分组或筛选：
+ *  - `active`    —— 进行中（Pending / Preparing / Downloading / Paused）
+ *  - `completed` —— 已完成（来自文件真值层，可与 missing 标记组合）
+ *  - `failed`    —— 失败（Error）
+ */
+export interface IDownloadRecord {
+    kind: "active" | "completed" | "failed";
+    /** 唯一键（`platform.id`） */
+    key: string;
+    musicItem: IMusic.IMusicItem;
+    status: DownloadStatus;
+    filename?: string;
+    quality?: IMusic.IQualityKey;
+    fileSize?: number;
+    downloadedSize?: number;
+    /** 本地文件路径（已完成记录有） */
+    localPath?: string;
+    /** 文件是否已丢失（missing 标记） */
+    missing?: boolean;
+    /** 失败原因 */
+    errorReason?: DownloadFailReason;
+    /** 最近更新时间（排序用） */
+    updatedAt: number;
 }
 
 
@@ -112,6 +176,8 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
     injectDependencies(configService: IAppConfig, pluginManager: IPluginManager): void {
         this.configService = configService;
         this.pluginManagerService = pluginManager;
+        // D11：恢复上次未完成的下载任务（重启后可继续）
+        this.restoreTasks();
     }
 
     private updateDownloadTask(musicItem: IMusic.IMusicItem, patch: Partial<IDownloadTaskInfo>) {
@@ -121,7 +187,103 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
         } as IDownloadTaskInfo;
         downloadTasks.set(getMediaUniqueKey(musicItem), newValue);
         this.emit(DownloaderEvent.DownloadTaskUpdate, newValue);
+        this.persistTasks();
         return newValue;
+    }
+
+    // ——— D11：持久化 ———
+
+    /** 把「未完成任务」与「待下载队列」落盘（已完成的不存，见文件真值层） */
+    private persistTasks() {
+        try {
+            const payload: IPersistedTask[] = [];
+            downloadTasks.forEach((task, key) => {
+                if (task.status === DownloadStatus.Completed) {
+                    return;
+                }
+                payload.push({
+                    key,
+                    // 重启后无法续传，进行中的一律降级为等待
+                    status:
+                        task.status === DownloadStatus.Downloading ||
+                        task.status === DownloadStatus.Preparing
+                            ? DownloadStatus.Pending
+                            : task.status,
+                    filename: task.filename,
+                    quality: task.quality,
+                    fileSize: task.fileSize,
+                    downloadedSize: task.downloadedSize,
+                    errorReason: task.errorReason,
+                    musicItem: task.musicItem,
+                    updatedAt: Date.now(),
+                });
+            });
+            downloadStore.set(PERSIST_TASKS_KEY, JSON.stringify(payload));
+            downloadStore.set(
+                PERSIST_QUEUE_KEY,
+                JSON.stringify(
+                    getDefaultStore()
+                        .get(downloadQueueAtom)
+                        .map(m => getMediaUniqueKey(m)),
+                ),
+            );
+        } catch (e) {
+            // 落盘失败不影响下载本身
+        }
+    }
+
+    /** 启动时恢复未完成任务与队列 */
+    private restoreTasks() {
+        try {
+            const rawTasks = downloadStore.getString(PERSIST_TASKS_KEY);
+            const saved = rawTasks ? safeParse<IPersistedTask[]>(rawTasks) : null;
+            if (!Array.isArray(saved) || !saved.length) {
+                return;
+            }
+            const queueKeysRaw = downloadStore.getString(PERSIST_QUEUE_KEY);
+            const queueKeys = new Set(
+                (queueKeysRaw ? safeParse<string[]>(queueKeysRaw) : null) ?? [],
+            );
+
+            const restoredItems: IMusic.IMusicItem[] = [];
+            saved.forEach(item => {
+                if (!item?.musicItem || !item.key) {
+                    return;
+                }
+                downloadTasks.set(item.key, {
+                    status: item.status,
+                    filename: item.filename,
+                    quality: item.quality,
+                    fileSize: item.fileSize,
+                    downloadedSize: item.downloadedSize,
+                    errorReason: item.errorReason,
+                    musicItem: item.musicItem,
+                });
+                // Pending 才重新排队；Paused / Error 保留状态等用户操作
+                if (item.status === DownloadStatus.Pending) {
+                    restoredItems.push(item.musicItem);
+                }
+            });
+
+            if (restoredItems.length) {
+                const queue = getDefaultStore().get(downloadQueueAtom);
+                const merged = [...queue];
+                restoredItems.forEach(item => {
+                    if (
+                        !merged.some(existing =>
+                            isSameMediaItem(existing, item),
+                        )
+                    ) {
+                        merged.push(item);
+                    }
+                });
+                getDefaultStore().set(downloadQueueAtom, merged);
+                this.downloadNextPendingTask();
+            }
+            void queueKeys;
+        } catch (e) {
+            // 恢复失败不影响新任务
+        }
     }
 
     // 开始下载
@@ -457,9 +619,214 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
             const downloadQueue = getDefaultStore().get(downloadQueueAtom);
             const newDownloadQueue = downloadQueue.filter(item => !isSameMediaItem(item, musicItem));
             getDefaultStore().set(downloadQueueAtom, newDownloadQueue);
+            this.persistTasks();
             return true;
         }
         return false;
+    }
+
+    // ——— D11：暂停 / 继续 / 重试 / 丢弃 ———
+
+    /** 暂停一个等待中或正在下载的任务 */
+    async pause(musicItem: IMusic.IMusicItem): Promise<boolean> {
+        const key = getMediaUniqueKey(musicItem);
+        const task = downloadTasks.get(key);
+        if (!task) {
+            return false;
+        }
+        if (task.status === DownloadStatus.Pending) {
+            this.updateDownloadTask(musicItem, {
+                status: DownloadStatus.Paused,
+            });
+            return true;
+        }
+        if (
+            task.status === DownloadStatus.Downloading ||
+            task.status === DownloadStatus.Preparing
+        ) {
+            try {
+                if (task.jobId != null) {
+                    await stopDownload(task.jobId);
+                }
+            } catch (e) {
+                // 停止失败也置为暂停，用户点继续时会重新排队
+            }
+            if (this.downloadingCount > 0) {
+                this.downloadingCount--;
+            }
+            this.updateDownloadTask(musicItem, {
+                status: DownloadStatus.Paused,
+                jobId: undefined,
+            });
+            this.downloadNextPendingTask();
+            return true;
+        }
+        return false;
+    }
+
+    /** 继续一个已暂停的任务 */
+    resume(musicItem: IMusic.IMusicItem): boolean {
+        const key = getMediaUniqueKey(musicItem);
+        const task = downloadTasks.get(key);
+        if (!task || task.status !== DownloadStatus.Paused) {
+            return false;
+        }
+        this.updateDownloadTask(musicItem, { status: DownloadStatus.Pending });
+        const queue = getDefaultStore().get(downloadQueueAtom);
+        if (!queue.some(item => isSameMediaItem(item, musicItem))) {
+            getDefaultStore().set(downloadQueueAtom, [...queue, musicItem]);
+        }
+        this.downloadNextPendingTask();
+        return true;
+    }
+
+    /** 重试一个失败的任务 */
+    retry(musicItem: IMusic.IMusicItem): boolean {
+        const key = getMediaUniqueKey(musicItem);
+        const task = downloadTasks.get(key);
+        if (!task || task.status !== DownloadStatus.Error) {
+            return false;
+        }
+        this.updateDownloadTask(musicItem, {
+            status: DownloadStatus.Pending,
+            errorReason: undefined,
+            downloadedSize: 0,
+        });
+        const queue = getDefaultStore().get(downloadQueueAtom);
+        if (!queue.some(item => isSameMediaItem(item, musicItem))) {
+            getDefaultStore().set(downloadQueueAtom, [...queue, musicItem]);
+        }
+        this.downloadNextPendingTask();
+        return true;
+    }
+
+    /** 丢弃一个未完成任务（进行中的需先暂停） */
+    discard(musicItem: IMusic.IMusicItem): boolean {
+        const key = getMediaUniqueKey(musicItem);
+        const task = downloadTasks.get(key);
+        if (!task) {
+            return false;
+        }
+        if (
+            task.status === DownloadStatus.Downloading ||
+            task.status === DownloadStatus.Preparing
+        ) {
+            return false;
+        }
+        downloadTasks.delete(key);
+        const queue = getDefaultStore().get(downloadQueueAtom);
+        getDefaultStore().set(
+            downloadQueueAtom,
+            queue.filter(item => !isSameMediaItem(item, musicItem)),
+        );
+        this.persistTasks();
+        return true;
+    }
+
+    /** 清空失败与已暂停的任务（批量「清除无效记录」用） */
+    clearInactive(): number {
+        let removed = 0;
+        const queue = getDefaultStore().get(downloadQueueAtom);
+        const keep: IMusic.IMusicItem[] = [];
+        queue.forEach(item => {
+            const task = downloadTasks.get(getMediaUniqueKey(item));
+            if (
+                task &&
+                (task.status === DownloadStatus.Error ||
+                    task.status === DownloadStatus.Paused)
+            ) {
+                downloadTasks.delete(getMediaUniqueKey(item));
+                removed++;
+            } else {
+                keep.push(item);
+            }
+        });
+        if (removed) {
+            getDefaultStore().set(downloadQueueAtom, keep);
+            this.persistTasks();
+        }
+        return removed;
+    }
+
+    // ——— D11：统一记录视图（单列表三类） ———
+
+    /**
+     * 取下载记录。
+     *
+     * 「已完成」来自 `mediaFileRegistry`（source=download）而**不是**内存任务表 ——
+     * 下载完成后任务会被删除（见下载流程），内存表无法作为历史来源；
+     * 文件真值层是持久化的，正好充当这一层的单一事实来源。
+     *
+     * @param options.checkMissing 逐个校验文件是否仍存在（IO 较多，默认关）。
+     *                             缺失的会在 `missing` 上标记，供 UI 提示与清理。
+     */
+    async getDownloadRecords(
+        options: { checkMissing?: boolean } = {},
+    ): Promise<IDownloadRecord[]> {
+        const records: IDownloadRecord[] = [];
+
+        // 进行中 / 失败
+        downloadTasks.forEach((task, key) => {
+            const isFailed = task.status === DownloadStatus.Error;
+            records.push({
+                kind: isFailed ? "failed" : "active",
+                key,
+                musicItem: task.musicItem,
+                status: task.status,
+                filename: task.filename,
+                quality: task.quality,
+                fileSize: task.fileSize,
+                downloadedSize: task.downloadedSize,
+                errorReason: task.errorReason,
+                updatedAt: Date.now(),
+            });
+        });
+
+        // 已完成（文件真值层）
+        try {
+            getAllMediaFiles()
+                .filter(file => file.source === "download")
+                .forEach(file => {
+                    const musicItem = {
+                        id: file.workKey || file.path,
+                        platform: "本地",
+                        title: file.title,
+                        artist: file.artist,
+                        artwork: "",
+                        [internalSerializeKey]: { localPath: file.path },
+                    } as unknown as IMusic.IMusicItem;
+                    records.push({
+                        kind: "completed",
+                        key: `本地.${musicItem.id}`,
+                        musicItem,
+                        status: DownloadStatus.Completed,
+                        fileSize: file.size,
+                        downloadedSize: file.size,
+                        localPath: file.path,
+                        missing: false,
+                        updatedAt: file.registeredAt,
+                    });
+                });
+        } catch (e) {
+            // 文件真值层不可用时只返回任务记录
+        }
+
+        if (options.checkMissing) {
+            await Promise.all(
+                records.map(async record => {
+                    if (record.kind !== "completed" || !record.localPath) {
+                        return;
+                    }
+                    try {
+                        record.missing = !(await exists(record.localPath));
+                    } catch (e) {
+                        record.missing = true;
+                    }
+                }),
+            );
+        }
+
+        return records.sort((a, b) => b.updatedAt - a.updatedAt);
     }
 }
 

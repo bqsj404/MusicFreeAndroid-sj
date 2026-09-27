@@ -1,74 +1,240 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import rpx from "@/utils/rpx";
 import ListItem from "@/components/base/listItem";
+import ThemeText from "@/components/base/themeText";
 import { sizeFormatter } from "@/utils/fileUtils";
-import { DownloadFailReason, DownloadStatus, useDownloadQueue, useDownloadTask } from "@/core/downloader";
+import downloader, {
+    DownloadFailReason,
+    DownloadStatus,
+    DownloaderEvent,
+    type IDownloadRecord,
+} from "@/core/downloader";
 import { FlashList } from "@shopify/flash-list";
 import { useI18N } from "@/core/i18n";
+import Toast from "@/utils/toast";
 
+/** 列表筛选（D11「单列表三类记录」用筛选，而不是拆成多个页面） */
+type DownloadFilter = "all" | "active" | "completed" | "failed";
 
-interface DownloadingListItemProps {
-    musicItem: IMusic.IMusicItem;
-}
-function DownloadingListItem(props: DownloadingListItemProps) {
-    const { musicItem } = props;
-    const taskInfo = useDownloadTask(musicItem);
-    const { t } = useI18N();
+const FILTERS: DownloadFilter[] = ["all", "active", "completed", "failed"];
 
-    const status = taskInfo?.status ?? DownloadStatus.Error;
+function getStatusDescription(
+    record: IDownloadRecord,
+    t: (key: any, options?: any) => string,
+): string {
+    const { status, errorReason } = record;
 
-    let description = "";
-
+    if (record.missing) {
+        return t("downloading.status.missing");
+    }
     if (status === DownloadStatus.Error) {
-        const reason = taskInfo?.errorReason;
-
-        if (reason === DownloadFailReason.NoWritePermission) {
-            description = t("downloading.downloadFailReason.noWritePermission");
-        } else if (reason === DownloadFailReason.FailToFetchSource) {
-            description = t("downloading.downloadFailReason.failToFetchSource");
-        } else {
-            description = t("downloading.downloadFailReason.unknown");
+        if (errorReason === DownloadFailReason.NoWritePermission) {
+            return t("downloading.downloadFailReason.noWritePermission");
         }
-    } else if (status === DownloadStatus.Completed) {
-        description = t("downloading.downloadStatus.completed");
-    } else if (status === DownloadStatus.Downloading) {
-        const progress = taskInfo?.downloadedSize ? sizeFormatter(taskInfo.downloadedSize) : "-";
-        const totalSize = taskInfo?.fileSize ? sizeFormatter(taskInfo.fileSize) : "-";
-
-        description = t("downloading.downloadStatus.downloadProgress", {
+        if (errorReason === DownloadFailReason.FailToFetchSource) {
+            return t("downloading.downloadFailReason.failToFetchSource");
+        }
+        return t("downloading.downloadFailReason.unknown");
+    }
+    if (status === DownloadStatus.Completed) {
+        return t("downloading.downloadStatus.completed");
+    }
+    if (status === DownloadStatus.Paused) {
+        return t("downloading.status.paused");
+    }
+    if (status === DownloadStatus.Downloading) {
+        const progress = record.downloadedSize
+            ? sizeFormatter(record.downloadedSize)
+            : "-";
+        const totalSize = record.fileSize
+            ? sizeFormatter(record.fileSize)
+            : "-";
+        return t("downloading.downloadStatus.downloadProgress", {
             progress,
             totalSize,
         });
-    } else if (status === DownloadStatus.Pending) {
-        description = t("downloading.downloadStatus.pending");
-    } else if (status === DownloadStatus.Preparing) {
-        description = t("downloading.downloadStatus.preparing");
     }
+    if (status === DownloadStatus.Pending) {
+        return t("downloading.downloadStatus.pending");
+    }
+    return t("downloading.downloadStatus.preparing");
+}
 
-    return <ListItem withHorizontalPadding>
-        <ListItem.Content
-            title={musicItem.title}
-            description={description}
-        />
-    </ListItem>;
+interface IRowProps {
+    record: IDownloadRecord;
+    onChanged: () => void;
+}
 
+function DownloadingListItem(props: IRowProps) {
+    const { record, onChanged } = props;
+    const { t } = useI18N();
+
+    /** 依据状态决定可用操作 */
+    const actions = useMemo(() => {
+        const list: Array<{ label: string; onPress: () => void }> = [];
+        const { status } = record;
+
+        if (
+            status === DownloadStatus.Pending ||
+            status === DownloadStatus.Downloading ||
+            status === DownloadStatus.Preparing
+        ) {
+            list.push({
+                label: t("downloading.action.pause"),
+                onPress: () => {
+                    downloader.pause(record.musicItem).then(onChanged);
+                },
+            });
+        } else if (status === DownloadStatus.Paused) {
+            list.push({
+                label: t("downloading.action.resume"),
+                onPress: () => {
+                    downloader.resume(record.musicItem);
+                    onChanged();
+                },
+            });
+        } else if (status === DownloadStatus.Error) {
+            list.push({
+                label: t("downloading.action.retry"),
+                onPress: () => {
+                    downloader.retry(record.musicItem);
+                    onChanged();
+                },
+            });
+        }
+
+        if (record.kind === "failed" || status === DownloadStatus.Paused) {
+            list.push({
+                label: t("downloading.action.discard"),
+                onPress: () => {
+                    downloader.discard(record.musicItem);
+                    onChanged();
+                },
+            });
+        }
+
+        return list;
+    }, [record, t, onChanged]);
+
+    return (
+        <ListItem withHorizontalPadding>
+            <ListItem.Content
+                title={record.musicItem.title}
+                description={getStatusDescription(record, t)}
+            />
+            {actions.map(action => (
+                <ThemeText
+                    key={action.label}
+                    fontSize="description"
+                    fontColor="primary"
+                    style={style.rowAction}
+                    onPress={action.onPress}>
+                    {action.label}
+                </ThemeText>
+            ))}
+        </ListItem>
+    );
 }
 
 export default function DownloadingList() {
-    const downloadQueue = useDownloadQueue();
+    const { t } = useI18N();
+    const [filter, setFilter] = useState<DownloadFilter>("all");
+    const [records, setRecords] = useState<IDownloadRecord[]>([]);
 
+    /** 拉取记录；`checkMissing` 会逐个校验文件是否还在，用于 missing 标记 */
+    const reload = useCallback(async () => {
+        try {
+            const list = await downloader.getDownloadRecords({
+                checkMissing: true,
+            });
+            setRecords(list);
+        } catch (e) {
+            // 读取失败保持原列表
+        }
+    }, []);
+
+    useEffect(() => {
+        reload();
+
+        // 下载事件驱动刷新（进度更新也在其中）
+        const onChange = () => {
+            reload();
+        };
+        downloader.on(DownloaderEvent.DownloadTaskUpdate, onChange);
+        downloader.on(DownloaderEvent.DownloadTaskError, onChange);
+        downloader.on(DownloaderEvent.DownloadQueueCompleted, onChange);
+        return () => {
+            downloader.off(DownloaderEvent.DownloadTaskUpdate, onChange);
+            downloader.off(DownloaderEvent.DownloadTaskError, onChange);
+            downloader.off(DownloaderEvent.DownloadQueueCompleted, onChange);
+        };
+    }, [reload]);
+
+    const filtered = useMemo(() => {
+        if (filter === "all") {
+            return records;
+        }
+        return records.filter(record => record.kind === filter);
+    }, [records, filter]);
+
+    const counts = useMemo(
+        () => ({
+            all: records.length,
+            active: records.filter(r => r.kind === "active").length,
+            completed: records.filter(r => r.kind === "completed").length,
+            failed: records.filter(r => r.kind === "failed").length,
+        }),
+        [records],
+    );
+
+    const onClearInactive = useCallback(() => {
+        const removed = downloader.clearInactive();
+        if (removed > 0) {
+            Toast.success(
+                t("downloading.clearDone", { count: String(removed) }),
+            );
+        }
+        reload();
+    }, [t, reload]);
 
     return (
         <View style={style.wrapper}>
-            <FlashList
-                style={style.downloading}
-                data={downloadQueue}
-                keyExtractor={_ => `dl${_.platform}.${_.id}`}
-                renderItem={({ item }) => {
-                    return <DownloadingListItem musicItem={item} />;
-                }}
-            />
+            {/* 筛选栏：单列表 + 三类筛选 */}
+            <View style={style.filterBar}>
+                {FILTERS.map(key => (
+                    <ThemeText
+                        key={key}
+                        fontSize="description"
+                        fontColor={filter === key ? "primary" : "textSecondary"}
+                        onPress={() => setFilter(key)}>
+                        {`${t(`downloading.filter.${key}`)} (${counts[key]})`}
+                    </ThemeText>
+                ))}
+                <ThemeText
+                    fontSize="description"
+                    fontColor="textSecondary"
+                    onPress={onClearInactive}>
+                    {t("downloading.action.clearInactive")}
+                </ThemeText>
+            </View>
+
+            {filtered.length === 0 ? (
+                <View style={style.empty}>
+                    <ThemeText fontColor="textSecondary">
+                        {t("downloading.empty")}
+                    </ThemeText>
+                </View>
+            ) : (
+                <FlashList
+                    style={style.downloading}
+                    data={filtered}
+                    keyExtractor={item => `dl-${item.key}`}
+                    renderItem={({ item }) => (
+                        <DownloadingListItem record={item} onChanged={reload} />
+                    )}
+                />
+            )}
         </View>
     );
 }
@@ -80,5 +246,20 @@ const style = StyleSheet.create({
     },
     downloading: {
         flexGrow: 0,
+    },
+    filterBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: rpx(24),
+        paddingVertical: rpx(16),
+    },
+    empty: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    rowAction: {
+        paddingHorizontal: rpx(16),
     },
 });
