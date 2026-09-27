@@ -19,6 +19,7 @@ import {
     type ICloudMusicItem,
 } from "@/core/cloudDisk";
 import { isCloudDiskConfigured } from "@/core/cloudDisk/client";
+import type { IUploadTask } from "@/core/cloudDisk/upload";
 import {
     collectLocalTasks,
     uploadTasksWithProgress,
@@ -99,28 +100,26 @@ export default function CloudMusic() {
 
     /** 上传本地音乐到云盘 */
     const onUploadLocal = useCallback(async () => {
-        let tasks = collectLocalTasks();
-        // 验收辅助：本地音乐库为空时，用设备上预置的测试音频跑通上传链路
-        // （本地库里的条目 localPath 可能已失效，见「第4批-云盘实施记录」4.4）
-        if (!tasks.length) {
-            try {
-                const exists = await RNFS.exists(DEV_TEST_AUDIO);
-                if (exists) {
-                    tasks = [
-                        {
-                            filePath: DEV_TEST_AUDIO,
-                            title: "test-local",
-                            artist: "验收样本",
-                            platform: "云盘",
-                            musicId: "dev-test-audio",
-                        },
-                    ];
-                }
-            } catch (e) {
-                // 忽略：走正常空提示
+        const tasks = collectLocalTasks();
+        // 验收辅助：把设备上预置的测试音频优先加入任务。
+        // 不能写成「仅当库为空时」——本地库里可能残留 localPath 已失效的条目，
+        // 那样 tasks 非空、样本进不来，上传会全部静默失败。
+        const testTask: IUploadTask = {
+            filePath: DEV_TEST_AUDIO,
+            title: "test-local",
+            artist: "验收样本",
+            platform: "云盘",
+            musicId: "dev-test-audio",
+        };
+        let effective = tasks;
+        try {
+            if (await RNFS.exists(DEV_TEST_AUDIO)) {
+                effective = [testTask, ...tasks];
             }
+        } catch (e) {
+            // 忽略：用原任务
         }
-        if (!tasks.length) {
+        if (!effective.length) {
             showToast({
                 type: "warn",
                 message: t("cloudMusic.uploadNoLocal"),
@@ -130,7 +129,7 @@ export default function CloudMusic() {
         // 用 LoadingDialog 包住（上传期间有遮罩与进度语义，与备份页一致）
         showDialog("LoadingDialog", {
             title: t("cloudMusic.uploadLocal"),
-            promise: uploadTasksWithProgress(tasks, (done, total) => {
+            promise: uploadTasksWithProgress(effective, (done, total) => {
                 setUploadProgress(`${done}/${total}`);
             }),
             onResolve(result, hideDialog) {
@@ -241,6 +240,7 @@ function formatBytes(bytes: number): string {
     }
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
 
 
 
