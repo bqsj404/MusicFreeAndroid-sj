@@ -18,6 +18,10 @@ import {
 } from "@/core/cloudDisk";
 import { isCloudDiskConfigured } from "@/core/cloudDisk/client";
 import {
+    collectLocalTasks,
+    uploadTasksWithProgress,
+} from "@/core/cloudDisk/localUpload";
+import {
     clearCloudFileCache,
     getCloudCacheUsage,
 } from "@/core/cloudDisk/fileCache";
@@ -44,6 +48,7 @@ export default function CloudMusic() {
     );
     const [errorText, setErrorText] = useState("");
     const [cacheText, setCacheText] = useState("0 B");
+    const [uploadProgress, setUploadProgress] = useState("");
 
     const load = useCallback(
         async (force = false) => {
@@ -95,6 +100,48 @@ export default function CloudMusic() {
             <StatusBar />
             <AppBar
                 menu={[
+                    {
+                        icon: "arrow-up-tray",
+                        title: t("cloudMusic.uploadLocal"),
+                        onPress: () => {
+                            const tasks = collectLocalTasks();
+                            if (!tasks.length) {
+                                showToast({
+                                    type: "warn",
+                                    message: t("cloudMusic.uploadNoLocal"),
+                                });
+                                return;
+                            }
+                            showDialog("LoadingDialog", {
+                                title: t("cloudMusic.uploadLocal"),
+                                promise: uploadTasksWithProgress(tasks, (done, total) => {
+                                    setUploadProgress(`${done}/${total}`);
+                                }),
+                                onResolve(result, hideDialog) {
+                                    hideDialog();
+                                    setUploadProgress("");
+                                    showToast({
+                                        type: result.failed ? "warn" : "success",
+                                        message: t("cloudMusic.uploadResult", {
+                                            uploaded: String(result.uploaded),
+                                            skipped: String(result.skipped),
+                                            failed: String(result.failed),
+                                        }),
+                                    });
+                                    invalidateCloudCache();
+                                    load(true);
+                                },
+                                onReject(reason, hideDialog) {
+                                    hideDialog();
+                                    setUploadProgress("");
+                                    showToast({
+                                        type: "warn",
+                                        message: String(reason?.message ?? reason),
+                                    });
+                                },
+                            });
+                        },
+                    },
                     {
                         icon: "archive-box-x-mark",
                         title: t("cloudMusic.clearCache", {
@@ -179,6 +226,8 @@ function formatBytes(bytes: number): string {
     }
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+
 
 
 

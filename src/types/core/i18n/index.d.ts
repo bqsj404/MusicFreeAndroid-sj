@@ -50,6 +50,9 @@ export interface ILanguageData {
     "cloudMusic.notConfigured": string; // 未配置提示
     "cloudMusic.loadFailed": string; // 云盘读取失败
     "cloudMusic.clearCache": string;
+    "cloudMusic.uploadLocal": string;
+    "cloudMusic.uploadNoLocal": string;
+    "cloudMusic.uploadResult": string;
     "cloudMusic.clearCacheTitle": string;
     "cloudMusic.clearCacheContent": string;
     "cloudMusic.clearCacheDone": string;
