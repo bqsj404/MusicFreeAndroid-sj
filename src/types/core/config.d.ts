@@ -64,6 +64,11 @@ export interface IAppConfigProperties {
     "webdav.username": string;
     "webdav.password": string;
 
+    // 硬件键盘 / 遥控器 / 手柄快捷键（keyBinding → actionId）
+    "keyboard.shortcuts"?: Record<string, string>;
+    /** 是否在界面上显示按键调试信息 */
+    "keyboard.debugLog"?: boolean;
+
     // Debug（保持嵌套结构）
     "debug.errorLog": boolean;
     "debug.traceLog": boolean;

@@ -48,17 +48,21 @@ class MainActivity : ReactActivity() {
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     val keyCode = event.keyCode
     val editing = isEditingText()
+    val shouldHandle = KeyboardKeyPolicy.shouldHandle(
+      keyCode,
+      editing,
+      event.isCtrlPressed,
+      event.isAltPressed,
+    )
 
     if (KeyboardEventModule.DEBUG) {
       Log.d(
         KeyboardEventModule.TAG,
-        "dispatchKeyEvent keyCode=$keyCode enabled=${KeyboardEventModule.enabled} editing=$editing shouldHandle=${KeyboardKeyPolicy.shouldHandle(keyCode, editing)}"
+        "dispatchKeyEvent keyCode=$keyCode enabled=${KeyboardEventModule.enabled} editing=$editing shouldHandle=$shouldHandle"
       )
     }
 
-    if (KeyboardEventModule.enabled &&
-        KeyboardKeyPolicy.shouldHandle(keyCode, editing)
-    ) {
+    if (KeyboardEventModule.enabled && shouldHandle) {
       // React 未就绪时不拦截，交回系统做默认焦点移动
       currentReactContext()?.let { context ->
         val module = context.getNativeModule(KeyboardEventModule::class.java)

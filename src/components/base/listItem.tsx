@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import rpx from "@/utils/rpx";
 import useColors, { CustomizedColors } from "@/hooks/useColors";
+import Theme from "@/core/theme";
 import ThemeText from "./themeText";
 import {
     fontSizeConst,
@@ -20,6 +21,7 @@ import {
 import FastImage from "./fastImage";
 import { ImageStyle } from "react-native-fast-image";
 import Icon, { IIconName } from "@/components/base/icon.tsx";
+import { useFocusable } from "@/core/focus";
 
 interface IListItemProps {
     // 是否有左右边距
@@ -35,6 +37,12 @@ interface IListItemProps {
     children?: ReactNode;
     onPress?: () => void;
     onLongPress?: () => void;
+    /** 焦点 id（硬件键盘 / 遥控器导航用）；不传则不参与焦点体系 */
+    focusId?: string;
+    /** 焦点组名 */
+    focusGroup?: string;
+    /** 组内序号 */
+    focusIndex?: number;
 }
 
 const defaultPadding = rpx(24);
@@ -58,6 +66,9 @@ function ListItem(props: IListItemProps) {
         children,
         onPress,
         onLongPress,
+        focusId,
+        focusGroup,
+        focusIndex,
     } = props;
 
     const defaultStyle: StyleProp<ViewStyle> = {
@@ -67,10 +78,32 @@ function ListItem(props: IListItemProps) {
     };
 
     const colors = useColors();
+    const theme = Theme.useTheme();
+
+    const focusable = useFocusable({
+        focusId: focusId ?? "list-item",
+        group: focusGroup,
+        index: focusIndex,
+        enabled: !!focusId,
+    });
 
     return (
         <TouchableHighlight
-            style={styles.container}
+            ref={focusId ? focusable.ref : undefined}
+            focusable={!!focusId}
+            onFocus={focusable.onFocus}
+            onBlur={focusable.onBlur}
+            onPressIn={focusable.onPressIn}
+            style={[
+                styles.container,
+                focusId && focusable.focused
+                    ? {
+                          borderColor: theme.colors.primary,
+                          borderWidth: 2,
+                          backgroundColor: theme.colors.listActive,
+                      }
+                    : null,
+            ]}
             underlayColor={colors.listActive}
             onPress={onPress}
             onLongPress={onLongPress}>

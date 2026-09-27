@@ -3,6 +3,7 @@ import AboutSetting from "./aboutSetting";
 import BackupSetting from "./backupSetting";
 import BasicSetting from "./basicSetting";
 import PluginSetting from "./pluginSetting";
+import ShortcutSetting from "./shortcutSetting";
 import ThemeSetting from "./themeSetting";
 
 const settingTypes: Record<
@@ -29,6 +30,11 @@ const settingTypes: Record<
         title: "主题设置",
         i18nKey: "sidebar.themeSettings",
         component: ThemeSetting,
+    },
+    shortcut: {
+        title: "键盘快捷键",
+        i18nKey: "setting.shortcut.title",
+        component: ShortcutSetting,
     },
     backup: {
         title: "备份与恢复",

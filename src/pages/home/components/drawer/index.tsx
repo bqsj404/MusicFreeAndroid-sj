@@ -14,11 +14,17 @@ import rpx from "@/utils/rpx";
 import { useScheduleCloseCountDown } from "@/utils/scheduleClose";
 import timeformat from "@/utils/timeformat";
 import { DrawerContentScrollView } from "@react-navigation/drawer";
-import React, { memo } from "react";
+import React, { memo, useEffect } from "react";
 import { BackHandler, Platform, StyleSheet, View } from "react-native";
 import { default as DeviceInfo, default as deviceInfoModule } from "react-native-device-info";
+import { registerFocusGroup, getFocusable } from "@/core/focus";
+import { useDrawerStatus } from "@react-navigation/drawer";
+import { useHardwareKeyPress } from "@/core/keyboard";
 
 const ITEM_HEIGHT = rpx(108);
+
+/** 侧栏焦点组名 */
+const DRAWER_FOCUS_GROUP = "drawer-menu";
 
 interface ISettingOptions {
     icon: IIconName;
@@ -35,6 +41,41 @@ function HomeDrawer(props: any) {
     }
 
     const { t, getSupportedLanguages, getLanguage, setLanguage } = useI18N();
+
+    // 侧栏项参与硬件键盘 / 遥控器焦点导航
+    const drawerStatus = useDrawerStatus();
+    useEffect(() => {
+        if (drawerStatus !== "open") {
+            return;
+        }
+        const unregister = registerFocusGroup(DRAWER_FOCUS_GROUP, "sequence");
+        // 侧栏打开后把焦点主动落到第一项：抽屉会盖住主内容，
+        // 不主动接管的话键盘焦点还停在背后的页面上
+        const timer = setTimeout(() => {
+            getFocusable("drawer-basic-0")?.focus();
+        }, 200);
+        return () => {
+            clearTimeout(timer);
+            unregister();
+        };
+    }, [drawerStatus]);
+
+    // 侧栏打开时：Esc 关闭侧栏（对齐桌面版 Esc 分层仲裁）
+    useHardwareKeyPress(
+        context => {
+            if (drawerStatus !== "open") {
+                return false;
+            }
+            if (context.semanticKey === "escape") {
+                (props.navigation as any)?.closeDrawer?.();
+                return true;
+            }
+            return false;
+        },
+        [drawerStatus],
+        10,
+        "HomeDrawer.close",
+    );
 
     const basicSetting: ISettingOptions[] = [
         {
@@ -55,6 +96,13 @@ function HomeDrawer(props: any) {
             title: t("sidebar.themeSettings"),
             onPress: () => {
                 navigateToSetting("theme");
+            },
+        },
+        {
+            icon: "bars-3",
+            title: t("setting.shortcut.title"),
+            onPress: () => {
+                navigateToSetting("shortcut");
             },
         },
     ];
@@ -102,6 +150,9 @@ function HomeDrawer(props: any) {
                         <ListItem
                             withHorizontalPadding
                             key={"basic-setting-" + index}
+                            focusId={`drawer-basic-${index}`}
+                            focusGroup={DRAWER_FOCUS_GROUP}
+                            focusIndex={index}
                             onPress={item.onPress}>
                             <ListItem.ListItemIcon
                                 icon={item.icon}
@@ -124,6 +175,9 @@ function HomeDrawer(props: any) {
                         <ListItem
                             withHorizontalPadding
                             key={"other-setting-" + index}
+                            focusId={`drawer-other-${index}`}
+                            focusGroup={DRAWER_FOCUS_GROUP}
+                            focusIndex={100 + index}
                             onPress={item.onPress}>
                             <ListItem.ListItemIcon
                                 icon={item.icon}
@@ -132,7 +186,11 @@ function HomeDrawer(props: any) {
                             <ListItem.Content title={item.title} />
                         </ListItem>
                     ))}
-                    <ListItem withHorizontalPadding key='language' onPress={() => {
+                    <ListItem withHorizontalPadding key='language'
+                        focusId="drawer-language"
+                        focusGroup={DRAWER_FOCUS_GROUP}
+                        focusIndex={200}
+                        onPress={() => {
                         showDialog("RadioDialog", {
                             "content": getSupportedLanguages().map(item => ({
                                 title: item.name,
@@ -164,6 +222,9 @@ function HomeDrawer(props: any) {
                     <ListItem
                         withHorizontalPadding
                         key={"update"}
+                        focusId="drawer-update"
+                        focusGroup={DRAWER_FOCUS_GROUP}
+                        focusIndex={300}
                         onPress={() => {
                             checkUpdateAndShowResult(true);
                         }}>
@@ -181,6 +242,9 @@ function HomeDrawer(props: any) {
                     <ListItem
                         withHorizontalPadding
                         key={"about"}
+                        focusId="drawer-about"
+                        focusGroup={DRAWER_FOCUS_GROUP}
+                        focusIndex={400}
                         onPress={() => {
                             navigateToSetting("about");
                         }}>

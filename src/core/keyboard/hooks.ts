@@ -2,12 +2,14 @@
  * 硬件按键相关的 React Hook。
  */
 import { useEffect, useRef } from "react";
+import Config from "@/core/appConfig";
 import {
     HardwareKeyContext,
     HardwareKeyHandler,
     registerKeyHandler,
     pushKeyLayer,
     setupKeyboardBridge,
+    setKeyboardDevLogging,
 } from "./registry";
 import { isNativeKeyboardEnabled, setNativeKeyboardEnabled } from "./native";
 
@@ -114,4 +116,22 @@ function setEnabled(value: boolean) {
         return;
     }
     setNativeKeyboardEnabled(value);
+}
+
+/**
+ * 按配置开关按键调试日志（`keyboard.debugLog`）。
+ *
+ * 打开后 JS 侧的按键链路信息会通过原生桥写入 logcat：
+ * `adb logcat -s MusicFreeKeyboard`
+ */
+export function useKeyboardDebugLog() {
+    useEffect(() => {
+        let enabled = false;
+        try {
+            enabled = !!Config.getConfig("keyboard.debugLog");
+        } catch (e) {
+            enabled = false;
+        }
+        setKeyboardDevLogging(enabled);
+    }, []);
 }

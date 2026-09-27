@@ -46,6 +46,26 @@ export interface ILanguageData {
     "sidebar.basicSettings": string; // 基本设置
     "sidebar.pluginManagement": string; // 插件管理
     "sidebar.themeSettings": string; // 主题设置
+    // 键盘快捷键设置
+    "setting.shortcut.title": string; // 键盘快捷键
+    "setting.shortcut.hint": string; // 说明
+    "setting.shortcut.pressKey": string; // 请按新键…
+    "setting.shortcut.unbound": string; // 未绑定
+    "setting.shortcut.bound": string; // 已更新快捷键
+    "setting.shortcut.reserved": string; // 保留键提示
+    "setting.shortcut.overridden": string; // 覆盖冲突提示
+    "setting.shortcut.reset": string; // 已恢复默认
+    "setting.shortcut.resetButton": string; // 恢复默认按钮
+    "setting.shortcut.action.playPause": string;
+    "setting.shortcut.action.playNext": string;
+    "setting.shortcut.action.playPrevious": string;
+    "setting.shortcut.action.seekForward": string;
+    "setting.shortcut.action.seekBackward": string;
+    "setting.shortcut.action.favorite": string;
+    "setting.shortcut.action.openSearch": string;
+    "setting.shortcut.action.openSetting": string;
+    "setting.shortcut.action.pageUp": string;
+    "setting.shortcut.action.pageDown": string;
     "sidebar.scheduleClose": string; // 定时关闭
     "sidebar.backupAndResume": string; // 备份与恢复
     "sidebar.permissionManagement": string; // 权限管理
