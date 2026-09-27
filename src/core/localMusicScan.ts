@@ -13,6 +13,7 @@
  * 状态用极简发布订阅暴露（`getSnapshot` + `subscribe`），
  * 组件侧用 `useSyncExternalStore` 或 `useEffect` 订阅即可。
  */
+import Config from "@/core/appConfig";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
 import { addFileScheme } from "@/utils/fileUtils";
@@ -167,12 +168,30 @@ export async function collectAudioFiles(
     const queue = folderPaths.map(path => addFileScheme(path));
     const seen = new Set<string>();
     const result: string[] = [];
+    // D12：排除目录（绝对路径前缀匹配），跳过录音/播客/有声书等
+    const excluded = getExcludedPaths();
+    /** 归一化：去 file:// 前缀，便于与配置里的绝对路径比较 */
+    const plain = (p: string) =>
+        p.startsWith("file://") ? decodeURIComponent(p.slice(7)) : p;
+    const isExcluded = (p: string) => {
+        if (!excluded.length) {
+            return false;
+        }
+        const v = plain(p);
+        return excluded.some(prefix => {
+            const pre = prefix.replace(/\/+$/, "");
+            return v === pre || v.startsWith(pre + "/");
+        });
+    };
 
     while (queue.length) {
         if (cancelled) {
             break;
         }
         const current = queue.shift()!;
+        if (isExcluded(current)) {
+            continue;
+        }
         let entries: Array<{ isDirectory(): boolean; path: string }> = [];
         try {
             entries = (await readDir(current)) as any[];
@@ -182,10 +201,11 @@ export async function collectAudioFiles(
         }
         entries.forEach(entry => {
             if (entry.isDirectory()) {
-                if (!seen.has(entry.path)) {
-                    seen.add(entry.path);
-                    queue.push(entry.path);
+                if (seen.has(entry.path) || isExcluded(entry.path)) {
+                    return;
                 }
+                seen.add(entry.path);
+                queue.push(entry.path);
             } else if (isAudio(entry.path)) {
                 result.push(entry.path);
             }
@@ -197,6 +217,30 @@ export async function collectAudioFiles(
         });
     }
     return result;
+}
+
+/** 读取消毒后的「排除目录」配置 */
+function getExcludedPaths(): string[] {
+    try {
+        const raw = Config.getConfig("localMusic.excludedPaths");
+        if (!Array.isArray(raw)) {
+            return [];
+        }
+        return raw.filter(v => typeof v === "string" && v.trim().length > 0);
+    } catch (e) {
+        return [];
+    }
+}
+
+/** 读取最短时长配置（秒）；<=0 表示不过滤 */
+export function getMinDurationSec(): number {
+    try {
+        const raw = Config.getConfig("localMusic.minDurationSec");
+        const n = Number(raw);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    } catch (e) {
+        return 0;
+    }
 }
 
 /**
@@ -320,3 +364,4 @@ export async function filterChangedFiles(
 /** 解析阶段的分组大小与工具（供 LocalMusicSheet 复用） */
 export { PARSE_GROUP_SIZE };
 export { addFileScheme };
+

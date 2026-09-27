@@ -1,6 +1,7 @@
 import deviceInfoModule from "react-native-device-info";
 import AboutSetting from "./aboutSetting";
 import BackupSetting from "./backupSetting";
+import LocalMusicSetting from "./localMusicSetting";
 import BasicSetting from "./basicSetting";
 import PluginSetting from "./pluginSetting";
 import ShortcutSetting from "./shortcutSetting";
@@ -36,6 +37,11 @@ const settingTypes: Record<
         i18nKey: "setting.shortcut.title",
         component: ShortcutSetting,
     },
+    localMusic: {
+        title: "本地音乐",
+        i18nKey: "setting.localMusic.title",
+        component: LocalMusicSetting,
+    },
     backup: {
         title: "备份与恢复",
         i18nKey: "sidebar.backupAndResume",
@@ -49,3 +55,4 @@ const settingTypes: Record<
 };
 
 export default settingTypes;
+

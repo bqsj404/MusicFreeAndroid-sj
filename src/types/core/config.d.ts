@@ -4,6 +4,13 @@ import type { CustomizedColors } from "@/hooks/useColors";
 export interface IAppConfigProperties {
     $schema: "2";
     // Basic
+    /**
+     * 本地音乐扫描：排除的目录（绝对路径前缀匹配）。
+     * 用于跳过录音、播客、有声书等不该入库的目录。
+     */
+    "localMusic.excludedPaths"?: string[];
+    /** 本地音乐扫描：最短时长（秒），0 或未设置表示不过滤 */
+    "localMusic.minDurationSec"?: number;
     "basic.autoPlayWhenAppStart": boolean;
     "basic.useCelluarNetworkPlay": boolean;
     "basic.useCelluarNetworkDownload": boolean;

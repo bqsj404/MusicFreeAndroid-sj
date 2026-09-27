@@ -107,6 +107,13 @@ function HomeDrawer(props: any) {
                 navigateToSetting("shortcut");
             },
         },
+        {
+            icon: "folder-plus",
+            title: t("setting.localMusic.title"),
+            onPress: () => {
+                navigateToSetting("localMusic");
+            },
+        },
     ];
 
     const otherSetting: ISettingOptions[] = [

@@ -18,6 +18,7 @@ import {
     failScan,
     filterChangedFiles,
     finishScan,
+    getMinDurationSec,
     reportScanProgress,
 } from "./localMusicScan";
 import CryptoJs from "crypto-js";
@@ -303,15 +304,25 @@ async function importLocal(
         if (token !== importToken) {
             throw new Error("Import Broken");
         }
-        addMusic(musicItems);
+        // D12：最短时长过滤（跳过提示音、试听碎片等）
+        const minDurationSec = getMinDurationSec();
+        const acceptedItems =
+            minDurationSec > 0
+                ? musicItems.filter(
+                      item => (item.duration ?? 0) >= minDurationSec,
+                  )
+                : musicItems;
+        const skippedByDuration = musicItems.length - acceptedItems.length;
+
+        addMusic(acceptedItems);
 
         // D13：入库时登记「文件真值」（含文件头容器嗅探）。
         // 分批并发，避免几百个文件同时打开句柄；登记失败不影响入库结果。
         try {
             const REGISTER_BATCH = 10;
-            for (let i = 0; i < musicItems.length; i += REGISTER_BATCH) {
+            for (let i = 0; i < acceptedItems.length; i += REGISTER_BATCH) {
                 await Promise.all(
-                    musicItems.slice(i, i + REGISTER_BATCH).map(item => {
+                    acceptedItems.slice(i, i + REGISTER_BATCH).map(item => {
                         const path = getLocalPath(item);
                         if (!path) {
                             return Promise.resolve(null);
@@ -395,5 +406,7 @@ const LocalMusicSheet = {
 };
 
 export default LocalMusicSheet;
+
+
 
 

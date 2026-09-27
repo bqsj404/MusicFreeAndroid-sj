@@ -87,6 +87,18 @@ export interface ILanguageData {
     "setting.shortcut.action.pageDown": string;
     "sidebar.scheduleClose": string; // 定时关闭
     "sidebar.backupAndResume": string; // 备份与恢复
+    "setting.localMusic.title": string;
+    "localMusicSetting.scanSection": string;
+    "localMusicSetting.excludedPaths": string;
+    "localMusicSetting.excludedPathsHint": string;
+    "localMusicSetting.excludedPathsPlaceholder": string;
+    "localMusicSetting.excludedCount": string;
+    "localMusicSetting.minDuration": string;
+    "localMusicSetting.minDurationHint": string;
+    "localMusicSetting.minDurationValue": string;
+    "localMusicSetting.notSet": string;
+    "localMusicSetting.tipSection": string;
+    "localMusicSetting.rescanTip": string;
     "sidebar.permissionManagement": string; // 权限管理
     "sidebar.checkUpdate": string; // 检查更新
     "sidebar.currentVersion": string; // 当前版本
