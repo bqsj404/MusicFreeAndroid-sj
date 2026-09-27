@@ -21,11 +21,11 @@
  */
 
 /** 歌手之间的分隔符（顺序无关，见 normalizeArtistKey） */
-const ARTIST_SPLIT_RE = /[&、,，;；/／+＋|｜·・]|\s[-–—]\s/;
+export const ARTIST_SPLIT_RE = /[&、,，;；/／+＋|｜·・]|\s[-–—]\s/;
 
 /** 比对时忽略的空白与标点 */
 // eslint-disable-next-line no-useless-escape
-const NOISE_RE = /[\s\u3000\-–—_.,，。！!？?'"“”‘’()（）\[\]【】&、/／+＋;；|｜]/g;
+export const NOISE_RE = /[\s\u3000\-–—_.,，。！!？?'"“”‘’()（）\[\]【】&、/／+＋;；|｜]/g;
 
 /** 归一化歌名：小写 + 去掉空白与标点 */
 export function normalizeTitleKey(value: string | null | undefined): string {
@@ -70,3 +70,4 @@ export function isUnknownArtist(value: string | null | undefined): boolean {
     const key = normalizeArtistKey(value);
     return !key || key === "未知歌手" || key === "unknown";
 }
+

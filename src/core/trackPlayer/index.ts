@@ -37,6 +37,11 @@ import MusicSheet from "@/core/musicSheet";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import { getSourceName } from "@/core/mediaSource";
 import toggleChain, { buildToggleGroupKey } from "@/core/playErrorChain";
+import {
+    SourceMatchLevel,
+    isMatched,
+    matchSourceLevel,
+} from "@/core/sourceMatch";
 
 import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import type { IAppConfig } from "@/types/core/config";
@@ -1146,6 +1151,8 @@ class TrackPlayer extends EventEmitter<{
         const plugins = this.pluginManagerService.getSearchablePlugins(type);
 
         let distance = Infinity;
+        // D2：当前找到的最好匹配级别（越小越可信）
+        let bestLevel: SourceMatchLevel = SourceMatchLevel.None;
         let minDistanceMusicItem;
         let targetPlugin;
 
@@ -1175,24 +1182,34 @@ class TrackPlayer extends EventEmitter<{
                 ) {
                     continue;
                 }
-                if (item.title === keyword && item.artist === musicItem.artist) {
-                    distance = 0;
+                /*
+                 * D2：换源要按「4 级匹配规则」判断是不是同一首歌，
+                 * 而不是只看文本距离 —— 只看距离会把 Live 版、
+                 * 翻唱版也当成可换的目标，换完用户听到的是另一首歌。
+                 *
+                 * 级别优先（越小越可信），同级别再比文本距离；
+                 * 完全不匹配的直接跳过。
+                 */
+                const level = matchSourceLevel(musicItem, item);
+                if (!isMatched(level)) {
+                    continue;
+                }
+                const dist =
+                    minDistance(keyword, musicItem.title) +
+                    minDistance(item.artist, musicItem.artist);
+                if (
+                    level < bestLevel ||
+                    (level === bestLevel && dist < distance)
+                ) {
+                    bestLevel = level;
+                    distance = dist;
                     minDistanceMusicItem = item;
                     targetPlugin = plugin;
-                    break;
-                } else {
-                    const dist =
-                        minDistance(keyword, musicItem.title) +
-                        minDistance(item.artist, musicItem.artist);
-                    if (dist < distance) {
-                        distance = dist;
-                        minDistanceMusicItem = item;
-                        targetPlugin = plugin;
-                    }
                 }
             }
 
-            if (distance === 0) {
+            // 已经是最高一级（完全一致），不必再往下找
+            if (bestLevel === SourceMatchLevel.Exact) {
                 break;
             }
         }
@@ -1260,6 +1277,7 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
 
 
 
