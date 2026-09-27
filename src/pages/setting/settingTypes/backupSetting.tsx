@@ -1,4 +1,5 @@
 import ListItem, { ListItemHeader } from "@/components/base/listItem";
+import ThemeSwitch from "@/components/base/switch";
 import Backup from "@/core/backup";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
 import Toast from "@/utils/toast";
@@ -27,6 +28,8 @@ export default function BackupSetting() {
     const webdavUrl = useAppConfig("webdav.url");
     const webdavUsername = useAppConfig("webdav.username");
     const webdavPassword = useAppConfig("webdav.password");
+    const autoBackup = useAppConfig("backup.autoBackup");
+    const uploadLocalFiles = useAppConfig("backup.uploadLocalFiles");
 
 
     const onBackupToLocal = async () => {
@@ -293,6 +296,39 @@ export default function BackupSetting() {
             </ListItem>
             <ListItem withHorizontalPadding onPress={onResumeFromWebdav}>
                 <ListItem.Content title={t("backupAndResume.resumeFromWebdav")} />
+            </ListItem>
+            <ListItem
+                withHorizontalPadding
+                onPress={() => {
+                    Config.setConfig("backup.autoBackup", !autoBackup);
+                }}>
+                <ListItem.Content
+                    title={t("backupAndResume.autoSync")}
+                />
+                <ThemeSwitch
+                    value={!!autoBackup}
+                    onValueChange={value => {
+                        Config.setConfig("backup.autoBackup", value);
+                    }}
+                />
+            </ListItem>
+            <ListItem
+                withHorizontalPadding
+                onPress={() => {
+                    Config.setConfig(
+                        "backup.uploadLocalFiles",
+                        !uploadLocalFiles,
+                    );
+                }}>
+                <ListItem.Content
+                    title={t("backupAndResume.uploadLocalFiles")}
+                />
+                <ThemeSwitch
+                    value={!!uploadLocalFiles}
+                    onValueChange={value => {
+                        Config.setConfig("backup.uploadLocalFiles", value);
+                    }}
+                />
             </ListItem>
         </ScrollView>
     );

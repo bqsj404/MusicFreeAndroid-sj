@@ -238,6 +238,8 @@
     "backupAndResume.localBackup": "本地备份",
     "backupAndResume.backupToLocal": "备份到本地",
     "backupAndResume.webdavSettings": "Webdav设置",
+    "backupAndResume.autoSync": "自动同步到云端",
+    "backupAndResume.uploadLocalFiles": "同时上传本地音乐文件",
     "backupAndResume.webdavUrl": "webdav服务地址",
     "backupAndResume.backupToWebdav": "备份到Webdav",
     "backupAndResume.resumeFromWebdav": "从Webdav中恢复",

@@ -238,6 +238,8 @@
     "backupAndResume.localBackup": "Local Backup",
     "backupAndResume.backupToLocal": "Backup to Local",
     "backupAndResume.webdavSettings": "Webdav Settings",
+    "backupAndResume.autoSync": "Auto sync to cloud",
+    "backupAndResume.uploadLocalFiles": "Also upload local music files",
     "backupAndResume.webdavUrl": "Webdav Server URL",
     "backupAndResume.backupToWebdav": "Backup to Webdav",
     "backupAndResume.resumeFromWebdav": "Restore from Webdav",

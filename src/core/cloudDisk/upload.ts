@@ -76,12 +76,16 @@ export function base64ToBytes(base64: string): Uint8Array {
 
 /** 单个上传任务 */
 export interface IUploadTask {
-    /** 本地文件绝对路径（file:// 可带前缀） */
+    /** 本地文件绝对路径（可带 file:// 前缀） */
     filePath: string;
-    /** 歌名（用于生成远端文件名） */
+    /** 歌名（用于生成远端文件名与清单记账） */
     title?: string;
     /** 歌手 */
     artist?: string;
+    /** 来源平台（清单记账用，默认「云盘」） */
+    platform?: string;
+    /** 平台内 id（清单记账用） */
+    musicId?: string;
 }
 
 /** 上传结果 */

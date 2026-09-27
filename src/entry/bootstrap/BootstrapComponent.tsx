@@ -9,12 +9,17 @@ import bootstrapAtom from "./bootstrap.atom";
 import { initTrackPlayer } from "./bootstrap";
 import { showDialog } from "@/components/dialogs/useDialog";
 import i18n from "@/core/i18n";
+import { setupCloudAutoSync } from "@/core/cloudDisk/autoSync";
 
 export function BootstrapComponent() {
     const bootstrapState = useAtomValue(bootstrapAtom);
 
     useListenOrientationChange();
     useCheckUpdate();
+
+    // 云盘自动对账（15 分钟周期 / 启动 30 秒补跑）；
+    // 仅在设置里开启「自动备份」后才会真正执行
+    useEffect(() => setupCloudAutoSync(), []);
 
     const followSystem = useAppConfig("theme.followSystem");
 

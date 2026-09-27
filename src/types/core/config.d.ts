@@ -55,6 +55,16 @@ export interface IAppConfigProperties {
 
     // Backup
     "backup.resumeMode": ResumeMode;
+    /** 自动备份/同步（云盘对账）总开关，默认关 */
+    "backup.autoBackup"?: boolean;
+    /** 自动同步时是否连带把本地音乐文件上传到云端 */
+    "backup.uploadLocalFiles"?: boolean;
+    /** 歌词是否备份到 `/MusicFree/lyrics`（默认开） */
+    "backup.uploadLyrics"?: boolean;
+    /** 待同步标记：> 0 表示有待同步内容（0 = 无） */
+    "backup.syncPendingAt"?: number;
+    /** 上次同步完成时间 */
+    "backup.lastSyncAt"?: number;
 
     // Plugin
     "plugin.subscribeUrl": string;

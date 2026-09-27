@@ -294,6 +294,8 @@ export interface ILanguageData {
     "backupAndResume.localBackup": string; // 本地备份
     "backupAndResume.backupToLocal": string; // 备份到本地
     "backupAndResume.webdavSettings": string; // WebDAV设置
+    "backupAndResume.autoSync": string; // 自动同步
+    "backupAndResume.uploadLocalFiles": string; // 同时上传本地音乐文件
     "backupAndResume.webdavUrl": string; // WebDAV URL
     "backupAndResume.backupToWebdav": string; // 备份到WebDAV
     "backupAndResume.resumeFromWebdav": string; // 从WebDAV恢复
