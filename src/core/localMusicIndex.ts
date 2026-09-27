@@ -23,6 +23,7 @@ import {
     isUnknownArtist,
     normalizeTitleKey,
 } from "@/core/mediaNameKey";
+import { findFileForMedia } from "@/core/mediaFileRegistry";
 
 export {
     buildMediaNameKey,
@@ -32,6 +33,15 @@ export {
 
 /**
  * 在本地音乐清单里按作品键找文件路径。
+ *
+ * 查找顺序（D1 与第 5 批「文件真值层」的衔接）：
+ *  1. **优先查文件真值层**（`mediaFileRegistry`）—— 里面只登记过真实存在过、
+ *     且嗅探过容器格式的文件，比内存清单可靠得多；
+ *  2. 再兜底查 `LocalMusicSheet` 内存清单（扫描入库但尚未登记的条目）。
+ *
+ * 为什么要分两步：本地库里可能残留 `localPath` 已失效的条目
+ * （例如从云盘播放后自动入库、随后缓存被清理），
+ * 若先命中这种条目，调用方的 `exists` 检查会失败，于是"本地优先"被白白错过。
  *
  * @param title  歌名
  * @param artist 歌手
@@ -46,6 +56,13 @@ export function findLocalMusicByWorkKey(
         return null;
     }
 
+    // 1. 文件真值层（可信度最高）
+    const recorded = findFileForMedia(title, artist);
+    if (recorded?.path) {
+        return recorded.path;
+    }
+
+    // 2. 兜底：内存清单
     let list: IMusic.IMusicItem[] = [];
     try {
         list = LocalMusicSheet.getMusicList() ?? [];
@@ -80,3 +97,4 @@ export function findLocalMusicByWorkKey(
 
     return fallbackByTitle.length === 1 ? fallbackByTitle[0] : null;
 }
+

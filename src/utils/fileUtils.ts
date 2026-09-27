@@ -126,6 +126,30 @@ export function addFileScheme(fileName: string) {
     return fileName;
 }
 
+/**
+ * 转成**可交给播放器**的 file URL（会做百分号编码）。
+ *
+ * 为什么需要它：`addFileScheme` 只是简单拼 `file://`，不处理空格 / 中文 / `#` / `?`。
+ * 这类路径交给 ExoPlayer 会因 URI 解析失败而播放报错
+ * （日志里表现为 `MalformedURLException: unknown protocol: ...`），
+ * 现象是「含空格或中文的本地文件点了没反应 / 直接 ERROR」。
+ * 实测对比：`test-local.wav` 可播，`李白 - 李荣浩.wav` 必失败。
+ *
+ * **注意**：文件系统操作（`RNFS.exists` / `unlink` 等）仍必须用原始路径，
+ * 所以没有改动 `addFileScheme`，只在「喂给播放器」的地方使用本函数。
+ */
+export function toPlayableFileUrl(fileName: string) {
+    if (!fileName.startsWith("/")) {
+        return fileName;
+    }
+    // encodeURI 会编码空格与中文，但不编码 `#` 与 `?` —— 这两个字符
+    // 在文件名里合法、在 URL 里却是分隔符，必须单独处理。
+    const encoded = encodeURI(fileName)
+        .replace(/#/g, "%23")
+        .replace(/\?/g, "%3F");
+    return `file://${encoded}`;
+}
+
 export function addRandomHash(url: string) {
     if (url.indexOf("#") === -1) {
         return `${url}#${Date.now()}`;

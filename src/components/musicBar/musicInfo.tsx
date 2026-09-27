@@ -24,6 +24,26 @@ interface IBarMusicItemProps {
     activeIndex: number; // 当前展示的是0/1/2
     transformSharedValue: SharedValue<number>;
 }
+
+/**
+ * 读取取源时打上的音源标记（D1 音源三态）。
+ *
+ * `getMediaSource` 的返回值会被合并进 track 并一路带到 `currentMusic`，
+ * 所以额外字段能在这里直接读到；只有「当前正在播放」的那一项才有标记
+ * （前后首尚未取源）。
+ */
+function readSourceTag(
+    musicItem: IMusic.IMusicItem | null,
+): string | undefined {
+    const extra = musicItem as
+        | (IMusic.IMusicItem & {
+              sourceKind?: IPlugin.MediaSourceKind;
+              sourceName?: string;
+          })
+        | null;
+    return extra?.sourceName?.trim() || undefined;
+}
+
 function _BarMusicItem(props: IBarMusicItemProps) {
     const { musicItem, activeIndex, transformSharedValue } = props;
     const colors = useColors();
@@ -34,6 +54,8 @@ function _BarMusicItem(props: IBarMusicItemProps) {
             left: `${(transformSharedValue.value + activeIndex) * 100}%`,
         };
     }, [activeIndex]);
+
+    const sourceTag = activeIndex === 0 ? readSourceTag(musicItem) : undefined;
 
     if (!musicItem) {
         return null;
@@ -61,6 +83,15 @@ function _BarMusicItem(props: IBarMusicItemProps) {
                 <ThemeText fontSize="content" fontColor="musicBarText">
                     {musicItem?.title}
                 </ThemeText>
+                {sourceTag ? (
+                    <ThemeText
+                        fontSize="description"
+                        color={Color(colors.musicBarText)
+                            .alpha(0.55)
+                            .toString()}>
+                        {` · ${sourceTag}`}
+                    </ThemeText>
+                ) : null}
                 {musicItem?.artist && (
                     <ThemeText
                         fontSize="description"

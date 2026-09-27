@@ -124,6 +124,37 @@ function parseFilename(fn: string): Partial<IMusic.IMusicItem> | null {
     };
 }
 
+/**
+ * 从「歌名 - 歌手」这类**常见音乐文件名**里解析歌名与歌手。
+ *
+ * 为什么需要：`parseFilename` 只认 MusicFree 自己的
+ * `平台@id@歌名@歌手` 命名约定，普通文件名会落空；而元数据标签又可能缺失
+ * （冷门歌曲、无损转码、录音）。此时条目会退化成
+ * 「整串文件名当标题 + 未知歌手」，导致：
+ *   - 列表里显示成 `李白 - 李荣浩.wav` 而不是 `李白 - 李荣浩`
+ *   - **作品键与在线歌曲对不上，「本地优先取源」永远命中不了**
+ *
+ * 分隔符口径与云盘同名匹配保持一致（按**最后一个** ` - ` 切分），
+ * 避免歌名本身含 ` - ` 时被切错。
+ *
+ * @returns 解析成功返回 `{ title, artist }`；不适用时返回 null
+ */
+function parseCommonFilename(
+    fn: string,
+): { title: string; artist: string } | null {
+    const base = fn.replace(/\.[^./\\]+$/, "").trim();
+    const idx = base.lastIndexOf(" - ");
+    if (idx <= 0) {
+        return null;
+    }
+    const title = base.slice(0, idx).trim();
+    const artist = base.slice(idx + 3).trim();
+    if (!title || !artist) {
+        return null;
+    }
+    return { title, artist };
+}
+
 function localMediaFilter(filename: string) {
     return supportLocalMediaType.some(ext => filename.toLowerCase().endsWith(ext));
 }
@@ -251,11 +282,15 @@ async function importLocal(
                     platform = "本地";
                     id = CryptoJs.MD5(musicPath).toString(CryptoJs.enc.Hex);
                 }
+                // 元数据标签优先；标签缺失时尝试从「歌名 - 歌手」文件名解析，
+                // 最后才退化成「整串文件名 + 未知歌手」（见 parseCommonFilename 注释）
+                const common = parseCommonFilename(getFileName(musicPath, true));
                 return {
                     id,
                     platform,
-                    title: title ?? meta?.title ?? getFileName(musicPath),
-                    artist: artist ?? meta?.artist ?? "未知歌手",
+                    title:
+                        title ?? meta?.title ?? common?.title ?? getFileName(musicPath),
+                    artist: artist ?? meta?.artist ?? common?.artist ?? "未知歌手",
                     duration: parseInt(meta?.duration ?? "0", 10) / 1000,
                     album: meta?.album ?? "未知专辑",
                     artwork: "",

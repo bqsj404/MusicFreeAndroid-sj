@@ -1,11 +1,13 @@
 import { getCurrentDialog, showDialog } from "@/components/dialogs/useDialog";
 import {
     internalFakeSoundKey,
+    localPluginPlatform,
     sortIndexSymbol,
     timeStampSymbol,
 } from "@/constants/commonConst";
 import { MusicRepeatMode } from "@/constants/repeatModeConst";
 import delay from "@/utils/delay";
+import { toPlayableFileUrl } from "@/utils/fileUtils";
 import getUrlExt from "@/utils/getUrlExt";
 import { errorLog, trace } from "@/utils/log";
 import { createMediaIndexMap } from "@/utils/mediaIndexMap";
@@ -21,6 +23,7 @@ import EventEmitter from "eventemitter3";
 import { produce } from "immer";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import shuffle from "lodash.shuffle";
+import { exists } from "react-native-fs";
 import ReactNativeTrackPlayer, {
     Event,
     State,
@@ -30,6 +33,8 @@ import ReactNativeTrackPlayer, {
     useProgress,
 } from "react-native-track-player";
 import LocalMusicSheet from "../localMusicSheet";
+import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
+import { getSourceName } from "@/core/mediaSource";
 
 import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import type { IAppConfig } from "@/types/core/config";
@@ -481,7 +486,37 @@ class TrackPlayer extends EventEmitter<{
             );
             // 5.3 插件返回音源
             let source: IPlugin.IMediaSourceResult | null = null;
+
+            // 5.2.5 本地优先（D1 取源三态的第一步：本地 → 云端 → 插件）
+            //
+            // 为什么必须放在这一层：原先这段逻辑写在
+            // `PluginMethodsWrapper.getMediaSource` 里，而那一层只包装**普通插件**；
+            // 「云盘」「本地」是内建插件，其 `methods` 直接是插件自身的实现，
+            // 会**绕过包装层** —— 于是对云盘歌曲本地优先从来就没生效过。
+            // 放在播放器的取源入口，才能对所有来源统一生效。
+            if (musicItem.platform !== localPluginPlatform) {
+                const localSameWork = findLocalMusicByWorkKey(
+                    musicItem.title,
+                    musicItem.artist,
+                );
+                if (
+                    localSameWork &&
+                    (await exists(localSameWork))
+                ) {
+                    trace("本地优先播放", localSameWork);
+                    source = {
+                        url: toPlayableFileUrl(localSameWork),
+                        sourceKind: "localLibrary",
+                        sourceName: getSourceName("localLibrary"),
+                    };
+                }
+            }
+
             for (let quality of qualityOrder) {
+                // 本地优先已命中则不再请求在线音源
+                if (source) {
+                    break;
+                }
                 if (this.isCurrentMusic(musicItem)) {
                     source =
                         (await plugin?.methods?.getMediaSource(
@@ -576,6 +611,19 @@ class TrackPlayer extends EventEmitter<{
             trace("获取音源成功", track);
             // 9. 设置音源
             await this.setTrackSource(track as Track);
+
+            // 9.1 D1 音源三态：把「已合并音源标记」的 track 同步进 UI 状态。
+            //
+            // 原先只有拿到补充信息（第 11 步的 `info`）时才会写 currentMusicAtom，
+            // 而很多歌曲（如云盘曲目）拿不到 info，于是 atom 里一直是最初那个
+            // **取源之前**的 musicItem —— UI 因此读不到 sourceKind/sourceName，
+            // 「音源胶囊」永远不显示。
+            if (this.isCurrentMusic(musicItem)) {
+                getDefaultStore().set(
+                    currentMusicAtom,
+                    track as IMusic.IMusicItem,
+                );
+            }
 
             // 10. 获取补充信息
             let info: Partial<IMusic.IMusicItem> | null = null;
@@ -1015,3 +1063,5 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
+

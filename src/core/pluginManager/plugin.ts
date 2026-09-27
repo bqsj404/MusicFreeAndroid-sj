@@ -10,10 +10,14 @@ import pathConst from "@/constants/pathConst";
 import Mp3Util from "@/native/mp3Util";
 import Base64 from "@/utils/base64";
 import delay from "@/utils/delay";
-import { addFileScheme, getFileName } from "@/utils/fileUtils";
+import { getFileName, toPlayableFileUrl } from "@/utils/fileUtils";
 import { getMediaExtraProperty, patchMediaExtra } from "@/utils/mediaExtra";
 import { getLocalPath, isSameMediaItem, resetMediaItem } from "@/utils/mediaUtils";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
+import {
+    getSourceName,
+    resolveSourceKindByPlatform,
+} from "@/core/mediaSource";
 import notImplementedFunction from "@/utils/notImplementedFunction.ts";
 import axios from "axios";
 import bigInt from "big-integer";
@@ -221,7 +225,9 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
 
             }
             return {
-                url: addFileScheme(localPath),
+                url: toPlayableFileUrl(localPath),
+                sourceKind: "local",
+                sourceName: getSourceName("local"),
             };
         } else if (localPathInMediaExtra) {
             patchMediaExtra(musicItem, {
@@ -246,7 +252,9 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                 patchMediaExtra(musicItem, { localPath: localSameWork });
             }
             return {
-                url: addFileScheme(localSameWork),
+                url: toPlayableFileUrl(localSameWork),
+                sourceKind: "localLibrary",
+                sourceName: getSourceName("localLibrary"),
             };
         }
 
@@ -270,6 +278,8 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                 headers: mediaCache.headers,
                 userAgent:
                     mediaCache.userAgent ?? mediaCache.headers?.["user-agent"],
+                sourceKind: "cache",
+                sourceName: getSourceName("cache"),
             };
         }
         // 3. 替代插件
@@ -281,6 +291,8 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
         }
 
         // 4. 插件解析
+        // 音源类型由 platform 推断：云盘走内建插件时标记为 cloud，其余为 plugin
+        const parsedKind = resolveSourceKindByPlatform(musicItem.platform);
         if (!parserPlugin.instance.getMediaSource) {
             const { url, auth } = formatAuthUrl(
                 musicItem?.qualities?.[quality]?.url ?? musicItem.url,
@@ -292,6 +304,8 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                         Authorization: auth,
                     }
                     : undefined,
+                sourceKind: parsedKind,
+                sourceName: getSourceName(parsedKind, parserPlugin.name),
             };
         }
         try {
@@ -307,6 +321,8 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                 url,
                 headers,
                 userAgent: headers?.["user-agent"],
+                sourceKind: parsedKind,
+                sourceName: getSourceName(parsedKind, parserPlugin.name),
             } as IPlugin.IMediaSourceResult;
             const authFormattedResult = formatAuthUrl(result.url!);
             if (authFormattedResult.auth) {
@@ -1135,7 +1151,7 @@ const localFilePluginDefine: IPlugin.IPluginDefine = {
     async getMediaSource(musicItem, quality) {
         if (quality === "standard") {
             return {
-                url: addFileScheme(musicItem.$?.localPath || musicItem.url),
+                url: toPlayableFileUrl(musicItem.$?.localPath || musicItem.url),
             };
         }
         return null;
@@ -1174,4 +1190,7 @@ export {
     hasBuiltinPlugin,
     isBuiltinPluginPlatform,
 } from "./builtin/registry";
+
+
+
 

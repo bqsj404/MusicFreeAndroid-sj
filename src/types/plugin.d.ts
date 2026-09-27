@@ -1,4 +1,23 @@
 declare namespace IPlugin {
+    /**
+     * 音源类型（D1「取源三态」）。
+     *
+     * 取源优先级为：`local` → `localLibrary` → `cloud` → `cache` → `plugin`，
+     * 前两者是「本地」的两种来源细分，便于 UI 区分「条目自带文件」与
+     * 「跨来源命中本地库」。
+     */
+    export type MediaSourceKind =
+        /** 条目自带的本地文件路径 */
+        | "local"
+        /** 本地优先：本地库里按作品键命中同一作品 */
+        | "localLibrary"
+        /** 云盘（WebDAV 内建插件） */
+        | "cloud"
+        /** 播放缓存 */
+        | "cache"
+        /** 在线插件 */
+        | "plugin";
+
     export interface IMediaSourceResult {
         headers?: Record<string, string>;
         /** 兜底播放 */
@@ -7,6 +26,10 @@ declare namespace IPlugin {
         userAgent?: string;
         /** 音质 */
         quality?: IMusic.IQualityKey;
+        /** 音源类型（取源时打标，供「音源胶囊」展示） */
+        sourceKind?: MediaSourceKind;
+        /** 音源展示名（插件名；本地/云盘等用固定文案） */
+        sourceName?: string;
     }
 
     export interface ISearchResult<T extends ICommon.SupportMediaType> {
