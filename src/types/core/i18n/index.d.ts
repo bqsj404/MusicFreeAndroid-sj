@@ -282,6 +282,19 @@ export interface ILanguageData {
     "toast.importing": string; // 正在导入
     "toast.failToImportSheet": string; // 歌单导入失败
     "toast.settingSuccess": string; // 设置成功
+    "lyricManager.title": string;
+    "lyricManager.scope.local": string;
+    "lyricManager.scope.cache": string;
+    "lyricManager.scope.cloud": string;
+    "lyricManager.unregistered": string;
+    "lyricManager.hasTranslation": string;
+    "lyricManager.delete": string;
+    "lyricManager.deleteDone": string;
+    "lyricManager.deleteFail": string;
+    "lyricManager.clearUnowned": string;
+    "lyricManager.clearDone": string;
+    "lyricManager.empty": string;
+    "lyricManager.loading": string;
     "toast.lyricAlignDone": string;
     "toast.installPluginSuccess": string; // 插件安装成功
     "toast.updatePluginSuccess": string; // 插件更新成功

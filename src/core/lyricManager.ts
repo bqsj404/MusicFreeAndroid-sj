@@ -7,6 +7,7 @@ import { isSameMediaItem } from "@/utils/mediaUtils";
 import minDistance from "@/utils/minDistance";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { Plugin } from "./pluginManager";
+import { markTranslation, registerLyric, unregisterLyric } from "./lyricRegistry";
 
 import pathConst from "@/constants/pathConst";
 import LyricUtil from "@/native/lyricUtil";
@@ -191,6 +192,14 @@ class LyricManager implements IInjectable {
             (type === "raw" ? "" : ".tran") +
             ".lrc", lyricContent, "utf8");
 
+        // D8：登记歌词归属。文件名是 MD5（单向），不登记就无法反查是哪首歌，
+        // 「歌词管理」的孤儿分区也就无从判断。
+        if (type === "translation") {
+            markTranslation(musicItem, true);
+        } else {
+            registerLyric(musicItem);
+        }
+
         if (this.trackPlayer.isCurrentMusic(musicItem)) {
             this.refreshLyric(false, false);
         }
@@ -213,6 +222,9 @@ class LyricManager implements IInjectable {
 
         await unlink(basePath + ".lrc").catch(() => { });
         await unlink(basePath + ".tran.lrc").catch(() => { });
+
+        // D8：注销歌词归属
+        unregisterLyric(musicItem);
 
         if (this.trackPlayer.isCurrentMusic(musicItem)) {
             this.refreshLyric(false, false);
@@ -431,3 +443,6 @@ export default lyricManager;
 
 export const useLyricState = () => useAtomValue(lyricStateAtom);
 export const useCurrentLyricItem = () => useAtomValue(currentLyricItemAtom);
+
+
+

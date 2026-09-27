@@ -124,6 +124,13 @@ function HomeDrawer(props: any) {
                 navigateToSetting("backup");
             },
         },
+        {
+            icon: "musical-note",
+            title: t("lyricManager.title"),
+            onPress: () => {
+                navigate(ROUTE_PATH.LYRIC_MANAGER);
+            },
+        },
     ];
 
     if (Platform.OS === "android") {
