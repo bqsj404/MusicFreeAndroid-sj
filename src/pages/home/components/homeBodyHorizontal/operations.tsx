@@ -51,6 +51,9 @@ export default function Operations() {
                         index % 4 ? styles.actionMarginLeft : null,
                     ]}
                     key={action.title}
+                    focusId={`home-action-${index}`}
+                    focusGroup="home-actions"
+                    focusIndex={index}
                     {...action}
                 />
             ))}

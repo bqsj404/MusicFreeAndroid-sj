@@ -9,6 +9,7 @@ import TitleAndTag from "./titleAndTag";
 import ThemeText from "../base/themeText";
 import TrackPlayer from "@/core/trackPlayer";
 import Icon from "@/components/base/icon.tsx";
+import { Focusable } from "@/core/focus";
 
 interface IMusicItemProps {
     index?: string | number;
@@ -20,7 +21,13 @@ interface IMusicItemProps {
     itemPaddingRight?: number;
     left?: () => JSX.Element;
     containerStyle?: StyleProp<ViewStyle>;
-    highlight?: boolean
+    highlight?: boolean;
+    /** 焦点 id（硬件键盘 / 遥控器导航用）；不传则不参与焦点体系 */
+    focusId?: string;
+    /** 焦点组名 */
+    focusGroup?: string;
+    /** 组内序号 */
+    focusIndex?: number;
 }
 export default function MusicItem(props: IMusicItemProps) {
     const {
@@ -34,9 +41,12 @@ export default function MusicItem(props: IMusicItemProps) {
         left: Left,
         containerStyle,
         highlight = false,
+        focusId,
+        focusGroup,
+        focusIndex,
     } = props;
 
-    return (
+    const content = (
         <ListItem
             heightType="big"
             style={containerStyle}
@@ -66,7 +76,7 @@ export default function MusicItem(props: IMusicItemProps) {
                 title={
                     <TitleAndTag
                         title={musicItem.title}
-                        titleFontColor={highlight ? "primary": "text"}
+                        titleFontColor={highlight ? "primary" : "text"}
                         tag={musicItem.platform}
                     />
                 }
@@ -105,6 +115,20 @@ export default function MusicItem(props: IMusicItemProps) {
             ) : null}
         </ListItem>
     );
+
+    if (!focusId) {
+        return content;
+    }
+
+    return (
+        <Focusable
+            focusId={focusId}
+            group={focusGroup}
+            index={focusIndex}
+            style={styles.focusContainer}>
+            {content}
+        </Focusable>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -120,5 +144,8 @@ const styles = StyleSheet.create({
         fontStyle: "italic",
         textAlign: "center",
         padding: rpx(2),
+    },
+    focusContainer: {
+        width: "100%",
     },
 });

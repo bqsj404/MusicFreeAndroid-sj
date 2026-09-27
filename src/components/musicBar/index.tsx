@@ -11,6 +11,14 @@ import TrackPlayer, { useCurrentMusic, useMusicState, useProgress } from "@/core
 import { musicIsPaused } from "@/utils/trackUtils";
 import MusicInfo from "./musicInfo";
 import Icon from "@/components/base/icon.tsx";
+import { FocusIconButton, getCurrentFocusId, getFocusable } from "@/core/focus";
+import { useHardwareKeyPress, KEY_PRIORITY } from "@/core/keyboard";
+
+/** 播放栏内的焦点组名：←→ 由播放栏自己处理（快退/快进），↑↓ 交给全局焦点导航 */
+export const MUSIC_BAR_FOCUS_GROUP = "music-bar";
+
+/** ←→ 快进/快退步长（秒） */
+const SEEK_STEP_SECONDS = 10;
 
 function CircularPlayBtn() {
     const progress = useProgress();
@@ -20,39 +28,45 @@ function CircularPlayBtn() {
     const isPaused = musicIsPaused(musicState);
 
     return (
-        <CircularProgressBase
-            activeStrokeWidth={rpx(4)}
-            inActiveStrokeWidth={rpx(2)}
-            inActiveStrokeOpacity={0.2}
-            value={
-                progress?.duration
-                    ? (100 * progress.position) / progress.duration
-                    : 0
-            }
-            duration={100}
-            radius={rpx(36)}
-            activeStrokeColor={colors.musicBarText}
-            inActiveStrokeColor={colors.textSecondary}>
-            <IconButton
-                accessibilityLabel={"播放或暂停歌曲"}
-                name={isPaused ? "play" : "pause"}
-                sizeType={"normal"}
-                hitSlop={{
-                    top: 10,
-                    left: 10,
-                    right: 10,
-                    bottom: 10,
-                }}
-                color={colors.musicBarText}
-                onPress={async () => {
-                    if (isPaused) {
-                        await TrackPlayer.play();
-                    } else {
-                        await TrackPlayer.pause();
-                    }
-                }}
-            />
-        </CircularProgressBase>
+        <FocusIconButton
+            focusId="music-bar-play"
+            group={MUSIC_BAR_FOCUS_GROUP}
+            borderRadius={rpx(36)}
+            style={style.barButton}>
+            <CircularProgressBase
+                activeStrokeWidth={rpx(4)}
+                inActiveStrokeWidth={rpx(2)}
+                inActiveStrokeOpacity={0.2}
+                value={
+                    progress?.duration
+                        ? (100 * progress.position) / progress.duration
+                        : 0
+                }
+                duration={100}
+                radius={rpx(36)}
+                activeStrokeColor={colors.musicBarText}
+                inActiveStrokeColor={colors.textSecondary}>
+                <IconButton
+                    accessibilityLabel={"播放或暂停歌曲"}
+                    name={isPaused ? "play" : "pause"}
+                    sizeType={"normal"}
+                    hitSlop={{
+                        top: 10,
+                        left: 10,
+                        right: 10,
+                        bottom: 10,
+                    }}
+                    color={colors.musicBarText}
+                    onPress={async () => {
+                        if (isPaused) {
+                            await TrackPlayer.play();
+                        } else {
+                            await TrackPlayer.pause();
+                        }
+                    }}
+                />
+            </CircularProgressBase>
+        </FocusIconButton>
     );
 }
 function MusicBar() {
@@ -77,6 +91,42 @@ function MusicBar() {
         };
     }, []);
 
+    // 焦点在播放栏内时：←→ 快退/快进，↑↓ 交回全局焦点导航
+    useHardwareKeyPress(
+        context => {
+            const direction = context.semanticKey;
+            if (direction !== "left" && direction !== "right") {
+                return false;
+            }
+            const currentId = getCurrentFocusId();
+            if (!currentId) {
+                return false;
+            }
+            const item = getFocusable(currentId);
+            if (item?.group !== MUSIC_BAR_FOCUS_GROUP) {
+                return false;
+            }
+            const delta =
+                (direction === "right" ? 1 : -1) * SEEK_STEP_SECONDS;
+            TrackPlayer.getProgress()
+                .then(progress => {
+                    const duration = progress?.duration ?? 0;
+                    const target = Math.max(
+                        0,
+                        Math.min(duration || Infinity, progress.position + delta),
+                    );
+                    return TrackPlayer.seekTo(target);
+                })
+                .catch(() => {
+                    // 没有在播放时忽略
+                });
+            return true;
+        },
+        [],
+        KEY_PRIORITY.PAGE,
+        "MusicBar.seek",
+    );
+
     return (
         <>
             {musicItem && !showKeyboard && (
@@ -97,17 +147,24 @@ function MusicBar() {
                     <MusicInfo musicItem={musicItem} />
                     <View style={style.actionGroup}>
                         <CircularPlayBtn />
-                        <Icon
-                            accessible
-                            accessibilityLabel="播放列表"
-                            name="playlist"
-                            size={rpx(56)}
-                            onPress={() => {
-                                showPanel("PlayList");
-                            }}
-                            color={colors.musicBarText}
-                            style={[style.actionIcon]}
-                        />
+                        <FocusIconButton
+                            focusId="music-bar-playlist"
+                            group={MUSIC_BAR_FOCUS_GROUP}
+                            index={1}
+                            borderRadius={rpx(12)}
+                            style={style.barButton}>
+                            <Icon
+                                accessible={false}
+                                accessibilityLabel="播放列表"
+                                name="playlist"
+                                size={rpx(56)}
+                                onPress={() => {
+                                    showPanel("PlayList");
+                                }}
+                                color={colors.musicBarText}
+                                style={[style.actionIcon]}
+                            />
+                        </FocusIconButton>
                     </View>
                 </View>
             )}
@@ -133,5 +190,9 @@ const style = StyleSheet.create({
     },
     actionIcon: {
         marginLeft: rpx(36),
+    },
+    barButton: {
+        paddingHorizontal: rpx(12),
+        paddingVertical: rpx(8),
     },
 });

@@ -17,6 +17,7 @@ import { StatusBar } from "react-native";
 import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 import { routes } from "@/core/router/routes.tsx";
 import ErrorBoundary from "@/components/errorBoundary";
+import KeyboardEvents from "./components/KeyboardEvents";
 
 /**
  * 字体颜色
@@ -57,6 +58,7 @@ export default function Pages() {
                         <Panels />
                         <Dialogs />
                         <Debug />
+                        <KeyboardEvents />
                         <ToastBaseComponent />
                         <PortalHost />
                     </NavigationContainer>

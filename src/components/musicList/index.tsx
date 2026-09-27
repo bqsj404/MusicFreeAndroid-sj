@@ -2,7 +2,7 @@ import { RequestStateCode } from "@/constants/commonConst";
 import TrackPlayer from "@/core/trackPlayer";
 import rpx from "@/utils/rpx";
 import { FlashList } from "@shopify/flash-list";
-import React, { useRef, useCallback, useState, useEffect } from "react";
+import React, { useRef, useCallback, useState, useEffect, useId } from "react";
 import { FlatListProps, Pressable, StyleSheet, View } from "react-native";
 import ListEmpty from "../base/listEmpty";
 import ListFooter from "../base/listFooter";
@@ -11,6 +11,7 @@ import { isSameMediaItem } from "@/utils/mediaUtils";
 import Icon from "../base/icon";
 import { iconSizeConst } from "@/constants/uiConst";
 import useColors from "@/hooks/useColors";
+import { invalidateFocusLayout, registerFocusGroup } from "@/core/focus";
 
 interface IMusicListProps {
     /** 顶部 */
@@ -32,6 +33,13 @@ interface IMusicListProps {
     highlightMusicItem?: IMusic.IMusicItem | null;
     onRetry?: () => void;
     onLoadMore?: () => void;
+    /**
+     * 焦点组名（硬件键盘 / 遥控器导航用）。
+     * 传入后列表项会参与焦点体系，↑↓ 按序号在列表内移动。
+     */
+    focusGroup?: string;
+    /** 焦点 id 前缀，同一页面有多个列表时必须区分 */
+    focusGroupPrefix?: string;
 }
 const ITEM_HEIGHT = rpx(120);
 
@@ -47,11 +55,27 @@ export default function MusicList(props: IMusicListProps) {
         onRetry,
         onLoadMore,
         highlightMusicItem,
+        focusGroup,
+        focusGroupPrefix,
     } = props;    
     const colors = useColors();
     const flashListRef = useRef<FlashList<IMusic.IMusicItem>>(null);
     const [showBadge, setShowBadge] = useState(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout>();
+
+    // 焦点组：默认组名 + 实例唯一前缀，避免同页面多个列表互相覆盖
+    const listInstanceId = useId();
+    const actualFocusGroup = focusGroup ?? "music-list";
+    const useFocus = focusGroup !== null;
+    const focusPrefix = focusGroupPrefix ?? actualFocusGroup;
+
+    // 注册焦点组：一维列表，↑↓ 按序号顺序移动
+    useEffect(() => {
+        if (!useFocus) {
+            return;
+        }
+        return registerFocusGroup(`${actualFocusGroup}${listInstanceId}`, "sequence");
+    }, [useFocus, actualFocusGroup, listInstanceId]);
 
     // 查找高亮项的索引
     const highlightIndex = React.useMemo(() => {
@@ -117,14 +141,29 @@ export default function MusicList(props: IMusicListProps) {
                 extraData={highlightMusicItem}
                 data={musicList ?? []}
                 estimatedItemSize={ITEM_HEIGHT}
+                onScroll={invalidateFocusLayout}
                 onScrollBeginDrag={handleScrollBegin}
                 onScrollEndDrag={handleScrollEnd}
                 onMomentumScrollEnd={handleScrollEnd}
                 renderItem={({ index, item: musicItem }) => {
                     return (
                         <MusicItem
+                            key={musicItem.id ?? index}
                             musicItem={musicItem}
                             index={showIndex ? index + 1 : undefined}
+                            focusId={
+                                useFocus
+                                    ? `${focusPrefix}${listInstanceId}-${
+                                          musicItem.id ?? index
+                                      }`
+                                    : undefined
+                            }
+                            focusGroup={
+                                useFocus
+                                    ? `${actualFocusGroup}${listInstanceId}`
+                                    : undefined
+                            }
+                            focusIndex={index}
                             onItemPress={() => {
                                 if (onItemPress) {
                                     onItemPress(musicItem, musicList);
