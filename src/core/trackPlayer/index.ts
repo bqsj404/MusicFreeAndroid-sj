@@ -37,6 +37,8 @@ import MusicSheet from "@/core/musicSheet";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import { getSourceName } from "@/core/mediaSource";
 import toggleChain, { buildToggleGroupKey } from "@/core/playErrorChain";
+import Toast from "@/utils/toast";
+import i18n from "@/core/i18n";
 import {
     SourceMatchLevel,
     isMatched,
@@ -1064,6 +1066,10 @@ class TrackPlayer extends EventEmitter<{
 
         const epoch = toggleChain.getEpoch();
         toggleChain.markTriedGroup(musicItem);
+        // 轻量「状态栏」：桌面版是常驻的 done/total + 停止按钮；
+        // Android 这里先用提示让换源过程可见。
+        // 停止能力已由 chain.stop() 提供，待有合适的常驻 UI 再挂上。
+        Toast.warn(i18n.t("toast.togglingSource"));
         const isAborted = () =>
             epoch !== toggleChain.getEpoch() ||
             !this.isCurrentMusic(musicItem) ||
@@ -1277,6 +1283,7 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
 
 
 

@@ -315,6 +315,7 @@ export interface ILanguageData {
     "lyricManager.empty": string;
     "lyricManager.loading": string;
     "toast.lyricAlignDone": string;
+    "toast.togglingSource": string;
     "toast.installPluginSuccess": string; // 插件安装成功
     "toast.updatePluginSuccess": string; // 插件更新成功
     "toast.installPluginFail": string; // 插件安装失败
@@ -587,6 +588,16 @@ export interface ILanguageData {
     // 面板相关 - 音乐项选项    
     "panel.musicItemOptions.author": string; // 作者
     "panel.musicItemOptions.changeArtwork": string;
+    "panel.musicItemOptions.toggleSource": string;
+    "panel.toggleSource.title": string;
+    "panel.toggleSource.empty": string;
+    "panel.toggleSource.switched": string;
+    "panel.toggleSource.switchedAndReplaced": string;
+    "panel.toggleSource.switchFail": string;
+    "panel.toggleSource.level.exact": string;
+    "panel.toggleSource.level.titleExact": string;
+    "panel.toggleSource.level.mutual": string;
+    "panel.toggleSource.level.loose": string;
     "panel.musicItemOptions.resetArtwork": string;
     "panel.musicItemOptions.artworkSet": string;
     "panel.musicItemOptions.artworkReset": string;

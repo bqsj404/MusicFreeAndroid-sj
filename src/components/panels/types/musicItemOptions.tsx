@@ -139,6 +139,14 @@ export default function MusicItemOptions(props: IMusicItemOptionsProps) {
             },
         },
         {
+            // D2：单曲换源（对齐桌面版「歌曲右键 → 更换来源」）
+            icon: "arrow-path",
+            title: t("panel.musicItemOptions.toggleSource"),
+            onPress: () => {
+                showPanel("ToggleSource", { musicItem });
+            },
+        },
+        {
             // D14：换图 / 恢复封面（对齐桌面版播放页的「更换 / 恢复封面」）
             icon: "arrow-up-tray",
             title: hasCustomArtwork(musicItem)
@@ -369,5 +377,6 @@ const style = StyleSheet.create({
         height: rpx(30),
     },
 });
+
 
 

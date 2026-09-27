@@ -3,6 +3,7 @@ import AssociateLrc from "./associateLrc";
 import ColorPicker from "./colorPicker";
 import ImportMusicSheet from "./importMusicSheet";
 import MusicItemOptions from "./musicItemOptions";
+import ToggleSource from "./toggleSource";
 import MusicQuality from "./musicQuality";
 import CreateMusicSheet from "./createMusicSheet";
 import PlayList from "./playList";
@@ -25,6 +26,7 @@ export default {
     AddToMusicSheet,
     /** 歌曲选项 */
     MusicItemOptions,
+    ToggleSource,
     /** 新建歌单 */
     CreateMusicSheet,
     /** 导入歌单 */
@@ -62,3 +64,4 @@ export default {
     MusicItemLyricOptions,
     EditMusicSheetInfo,
 };
+
