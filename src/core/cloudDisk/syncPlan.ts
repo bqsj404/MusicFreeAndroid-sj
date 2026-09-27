@@ -2,7 +2,8 @@
  * 云端对账的**纯函数**部分 —— 原样对齐桌面版
  * `src/infra/cloudDisk/common/syncPlan.ts` 的判定口径。
  *
- * 本文件刻意零依赖（只用 Set / Map / 字符串），便于单测与直接搬用。
+ * 本文件刻意零依赖（只用 Set / Map / 字符串，类型导入会被 tsc 擦除），
+ * 便于单测与直接搬用。
  *
  * 判定要「保守」：只要还有一点证据表明这首歌仍被本地管理，就**不**判为孤儿。
  * 五条豁免（命中任一即保留）：
@@ -13,7 +14,7 @@
  *   ④ 同一个 remotePath 已在本轮处理过（去重，只移一次）
  */
 import type { ICloudUploadRecord } from "./uploadRecords";
-import { uploadKey } from "./uploadRecords";
+import { uploadKey } from "./keys";
 
 /**
  * 选出应移入回收站的远端逻辑路径。

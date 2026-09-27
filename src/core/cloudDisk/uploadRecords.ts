@@ -16,12 +16,14 @@
  */
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
+import { buildRecordKey, uploadKey } from "./keys";
 
 const store = getOrCreateMMKV("cloudDisk.uploads");
 
-const REC_PREFIX = "cu:rec:";
 const IDS_KEY = "cu:ids";
 const MANUAL_KEY = "cu:manual";
+
+export { buildRecordKey, uploadKey };
 
 /** 上传来源 */
 export type CloudUploadSource = "manual" | "auto";
@@ -44,19 +46,6 @@ export interface ICloudUploadRecord {
 }
 
 /** 组装记录键（三元组） */
-export function buildRecordKey(
-    platform: string,
-    musicId: string,
-    remotePath: string,
-): string {
-    return `${REC_PREFIX}${platform}\u0000${musicId}\u0000${remotePath}`;
-}
-
-/** 本地管理集合用的组合键（与桌面版 uploadKey 口径一致） */
-export function uploadKey(platform: string, musicId: string): string {
-    return `${platform}\u0000${String(musicId)}`;
-}
-
 function readIds(key: string): string[] {
     const raw = store.getString(key);
     const parsed = raw ? safeParse<string[]>(raw) : null;
@@ -191,3 +180,5 @@ export function clearUploads(): void {
     writeIds(IDS_KEY, []);
     writeIds(MANUAL_KEY, []);
 }
+
+
