@@ -18,6 +18,7 @@ import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 import { routes } from "@/core/router/routes.tsx";
 import ErrorBoundary from "@/components/errorBoundary";
 import KeyboardEvents from "./components/KeyboardEvents";
+import { useWindowSize } from "@/utils/rpx";
 
 /**
  * 字体颜色
@@ -31,6 +32,8 @@ const Stack = createNativeStackNavigator<any>();
 
 export default function Pages() {
     const theme = Theme.useTheme();
+    // 订阅窗口尺寸：屏幕旋转时让整棵树的 rpx()/vh()/vw() 重新求值
+    useWindowSize();
 
     return (
         <ErrorBoundary>
