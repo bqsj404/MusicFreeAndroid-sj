@@ -84,18 +84,30 @@ export function joinRemoteUrl(baseUrl: string, remotePath: string): string {
     return `${base}/${segments.join("/")}`;
 }
 
-/** 播放时需要的请求头（Basic Auth + 目标服务要求的 UA） */
-export function buildAuthHeaders(): Record<string, string> | null {
+/**
+ * 播放时需要的请求头与 UA。
+ *
+ * 关键：目标服务要求的 Zotero UA 必须通过独立的 userAgent 字段传给播放器，
+ * 不能塞进 headers。ExoPlayer 的 DefaultHttpDataSource.Factory 会先
+ * setDefaultRequestProperties(headers) 再 setUserAgent(userAgent)，
+ * 后者会覆盖 headers 里的 User-Agent；数据胶囊按 UA 判定客户端类型，
+ * 被覆盖后返回 403 Client type mismatch（表现为列表能出、一播放就失败）。
+ */
+export function buildStreamHeaders(): {
+    headers: Record<string, string>;
+    userAgent?: string;
+} | null {
     const config = readCloudDiskConfig();
     if (!config) {
         return null;
     }
-    return {
+    const headers: Record<string, string> = {
         Authorization: `Basic ${basicAuth(config.username, config.password)}`,
-        ...(isZoteroOnlyDav(config.url)
-            ? davExtraHeaders(config.url)
-            : {}),
-    } as Record<string, string>;
+    };
+    const zoteroUa = isZoteroOnlyDav(config.url)
+        ? davExtraHeaders(config.url)?.["User-Agent"]
+        : undefined;
+    return zoteroUa ? { headers, userAgent: zoteroUa } : { headers };
 }
 
 /** 判断错误是否为「远端不存在」 */
@@ -109,3 +121,4 @@ export function isNotFoundError(e: any): boolean {
 }
 
 export { isZoteroOnlyDav, davExtraHeaders };
+

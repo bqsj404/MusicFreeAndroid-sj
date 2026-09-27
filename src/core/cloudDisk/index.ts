@@ -19,7 +19,7 @@ import {
     LYRIC_INVALID_CHARS,
 } from "./constant";
 import {
-    buildAuthHeaders,
+    buildStreamHeaders,
     createCloudDiskClient,
     isNotFoundError,
     joinRemoteUrl,
@@ -268,18 +268,19 @@ export async function getCloudMusicItems(
  */
 export function buildStreamSource(
     remotePath: string,
-): { url: string; headers: Record<string, string> } | null {
+): { url: string; headers: Record<string, string>; userAgent?: string } | null {
     const config = readCloudDiskConfig();
     if (!config || !remotePath) {
         return null;
     }
-    const headers = buildAuthHeaders();
-    if (!headers) {
+    const source = buildStreamHeaders();
+    if (!source) {
         return null;
     }
     return {
         url: joinRemoteUrl(config.url, remotePath),
-        headers,
+        headers: source.headers,
+        userAgent: source.userAgent,
     };
 }
 
@@ -292,7 +293,11 @@ export function buildStreamSource(
  */
 export async function resolveCloudStreamSource(
     musicItem: ICommon.IMediaBase,
-): Promise<{ url: string; headers: Record<string, string> } | null> {
+): Promise<{
+    url: string;
+    headers: Record<string, string>;
+    userAgent?: string;
+} | null> {
     const extra = musicItem as ICommon.IMediaBase & Partial<ICloudExtra>;
     // 条目自带存储路径时直接用
     const directPath = extra.cloudPath || musicItem.id;
@@ -453,5 +458,10 @@ export async function buildCloudMediaSource(
     return {
         url: source.url,
         headers: source.headers,
+        // UA 走独立字段：ExoPlayer 会用 setUserAgent 覆盖 headers 里的 User-Agent
+        ...(source.userAgent ? { userAgent: source.userAgent } : {}),
     };
 }
+
+
+
