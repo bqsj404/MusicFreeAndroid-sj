@@ -15,6 +15,7 @@ import path from "path-browserify";
 import { useEffect, useState } from "react";
 import { copyFile, downloadFile, exists, unlink } from "react-native-fs";
 import LocalMusicSheet from "./localMusicSheet";
+import { registerExistingFile } from "./mediaFileRegistry";
 import { IPluginManager } from "@/types/core/pluginManager";
 
 
@@ -338,6 +339,21 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
                 downloaded: true,
                 localPath: targetDownloadPath,
             });
+
+            // D13：下载完成即登记「文件真值」。
+            // 这里会嗅探文件头拿到**真实容器格式** —— 下载来的文件扩展名经常说谎
+            // （服务端把 m4a 标成 .mp3 是重灾区），登记后「本地优先取源」
+            // 与下载管理的 missing 判定才有可靠依据。
+            // 登记属于增强能力，失败不应影响下载结果，故就地吞掉异常。
+            try {
+                await registerExistingFile(targetDownloadPath, {
+                    title: musicItem.title,
+                    artist: musicItem.artist,
+                    source: "download",
+                });
+            } catch (e) {
+                // 忽略
+            }
 
             this.markTaskAsCompleted(musicItem);
         } catch (e: any) {

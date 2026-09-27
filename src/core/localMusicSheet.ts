@@ -9,6 +9,7 @@ import {
     getLocalPath,
     isSameMediaItem,
 } from "@/utils/mediaUtils";
+import { registerExistingFile } from "./mediaFileRegistry";
 import StateMapper from "@/utils/stateMapper";
 import { getStorage, setStorage } from "@/utils/storage";
 import {
@@ -268,6 +269,29 @@ async function importLocal(
             throw new Error("Import Broken");
         }
         addMusic(musicItems);
+
+        // D13：入库时登记「文件真值」（含文件头容器嗅探）。
+        // 分批并发，避免几百个文件同时打开句柄；登记失败不影响入库结果。
+        try {
+            const REGISTER_BATCH = 10;
+            for (let i = 0; i < musicItems.length; i += REGISTER_BATCH) {
+                await Promise.all(
+                    musicItems.slice(i, i + REGISTER_BATCH).map(item => {
+                        const path = getLocalPath(item);
+                        if (!path) {
+                            return Promise.resolve(null);
+                        }
+                        return registerExistingFile(path, {
+                            title: item.title,
+                            artist: item.artist,
+                            source: "scan",
+                        }).catch(() => null);
+                    }),
+                );
+            }
+        } catch (e) {
+            // 忽略：登记是增强能力
+        }
         finishScan({
             added: musicItems.length,
             skipped: skippedCount,
@@ -336,3 +360,5 @@ const LocalMusicSheet = {
 };
 
 export default LocalMusicSheet;
+
+
