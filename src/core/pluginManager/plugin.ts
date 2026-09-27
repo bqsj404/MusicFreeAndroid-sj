@@ -9,6 +9,7 @@ import {
 import pathConst from "@/constants/pathConst";
 import Mp3Util from "@/native/mp3Util";
 import Base64 from "@/utils/base64";
+import { createPluginStorage } from "./storage";
 import delay from "@/utils/delay";
 import { getFileName, toPlayableFileUrl } from "@/utils/fileUtils";
 import { getMediaExtraProperty, patchMediaExtra } from "@/utils/mediaExtra";
@@ -968,6 +969,13 @@ export class Plugin {
                     get userVariables() {
                         return this.getUserVariables() ?? {};
                     },
+                    /**
+                     * D17：插件 KV 存储。
+                     *
+                     * 每个插件独立命名空间、总量上限 10MB。
+                     * 值统一按字符串存取（与 Web Storage 语义一致）。
+                     */
+                    storage: createPluginStorage(this.name),
                     appVersion,
                     os: "android",
                     lang: "zh-CN",
@@ -1210,6 +1218,7 @@ export {
     hasBuiltinPlugin,
     isBuiltinPluginPlatform,
 } from "./builtin/registry";
+
 
 
 
