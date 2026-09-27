@@ -18,7 +18,9 @@ import { writeInChunks } from "@/utils/fileUtils.ts";
 import { errorLog } from "@/utils/log.ts";
 import { getDocumentAsync } from "expo-document-picker";
 import { readAsStringAsync } from "expo-file-system";
-import { AuthType, createClient } from "webdav";
+import { createCloudDiskClient } from "@/core/cloudDisk/client";
+import { REMOTE_BACKUP_PATH } from "@/core/cloudDisk/autoSync";
+import { toStoredPath } from "@/core/cloudDisk/zoteroDavCompat";
 
 export default function BackupSetting() {
     const { t } = useI18N();
@@ -143,24 +145,42 @@ export default function BackupSetting() {
             Toast.warn(t("toast.resumePreCheckFailed"));
             return;
         }
-        const client = createClient(url, {
-            authType: AuthType.Password,
-            username: username,
-            password: password,
-        });
+        // 复用云盘的 client：它修掉了 RN 下 `AuthType.Password` 不发凭据的问题
+        // （改用 AuthType.None + 显式 Authorization），并带上目标服务要求的 UA。
+        // 原先这里直接用 `createClient({authType: AuthType.Password})`，
+        // 请求不带认证 → 恢复自然「没有效果」。
+        const client = createCloudDiskClient();
+        if (!client) {
+            Toast.warn(t("toast.resumePreCheckFailed"));
+            return;
+        }
 
-        if (!(await client.exists("/MusicFree/MusicFreeBackup.json"))) {
+        // 路径口径与「自动对账」写的备份保持一致（经兼容层映射）；
+        // 同时兼容未映射的旧路径，逐个探测。
+        const storedPath = toStoredPath(REMOTE_BACKUP_PATH);
+        const candidatePaths = Array.from(
+            new Set([storedPath, REMOTE_BACKUP_PATH]),
+        );
+        let existedPath: string | null = null;
+        for (const p of candidatePaths) {
+            try {
+                if (await client.exists(p)) {
+                    existedPath = p;
+                    break;
+                }
+            } catch (e) {
+                // 探测失败就试下一个
+            }
+        }
+        if (!existedPath) {
             Toast.warn(t("toast.backupFileNotFound"));
             return;
         }
 
         try {
-            const resumeData = await client.getFileContents(
-                "/MusicFree/MusicFreeBackup.json",
-                {
-                    format: "text",
-                },
-            );
+            const resumeData = await client.getFileContents(existedPath, {
+                format: "text",
+            });
             await Backup.resume(
                 resumeData,
                 Config.getConfig("backup.resumeMode"),
@@ -180,24 +200,26 @@ export default function BackupSetting() {
             return;
         }
         try {
-            const client = createClient(url, {
-                authType: AuthType.Password,
-                username: username,
-                password: password,
-            });
+            // 与恢复、自动对账使用同一 client 与同一路径口径
+            const client = createCloudDiskClient();
+            if (!client) {
+                Toast.warn(t("toast.resumePreCheckFailed"));
+                return;
+            }
 
             const raw = Backup.backup();
-            if (!(await client.exists("/MusicFree"))) {
-                await client.createDirectory("/MusicFree");
+            const storedPath = toStoredPath(REMOTE_BACKUP_PATH);
+            // 确保目录存在（createCloudDiskClient 已处理认证与 UA）
+            try {
+                if (!(await client.exists("/MusicFree"))) {
+                    await client.createDirectory("/MusicFree");
+                }
+            } catch (e) {
+                // 目录已存在时忽略
             }
-            // 临时文件
-            await client.putFileContents(
-                "/MusicFree/MusicFreeBackup.json",
-                raw,
-                {
-                    overwrite: true,
-                },
-            );
+            await client.putFileContents(storedPath, raw, {
+                overwrite: true,
+            });
             Toast.success(t("toast.backupSuccess"));
         } catch (e: any) {
             Toast.warn(t("toast.backupFail", { reason: e?.message ?? e }));

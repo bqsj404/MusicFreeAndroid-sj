@@ -300,28 +300,48 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
         }
 
         // 下载
-        const { promise } = downloadFile({
-            fromUrl: url ?? "",
-            toFile: cacheDownloadPath,
-            headers: headers,
-            background: true,
-            begin: (res) => {
+        //
+        // 云盘（WebDAV）与「本地优先」取源返回的是**本地文件**（`file://`），
+        // 而 RNFS 的 `downloadFile` 只支持 http/https —— 拿 `file://` 去下载会直接失败，
+        // 表现就是「云盘音乐点下载没反应 / 没效果」。本地来源改为直接复制。
+        const isLocalSource = (url ?? "").startsWith("file://");
+        const promise = (async () => {
+            if (isLocalSource) {
+                const plainFrom = decodeURIComponent((url as string).slice(7));
+                const plainTo = cacheDownloadPath.startsWith("file://")
+                    ? decodeURIComponent(cacheDownloadPath.slice(7))
+                    : cacheDownloadPath;
+                await copyFile(plainFrom, plainTo);
                 this.updateDownloadTask(musicItem, {
                     status: DownloadStatus.Downloading,
                     downloadedSize: 0,
-                    fileSize: res.contentLength,
-                    jobId: res.jobId,
                 });
-            },
-            progress: (res) => {
-                this.updateDownloadTask(musicItem, {
-                    status: DownloadStatus.Downloading,
-                    downloadedSize: res.bytesWritten,
-                    fileSize: res.contentLength,
-                    jobId: res.jobId,
-                });
-            },
-        });
+                return;
+            }
+            const { promise: downloadPromise } = downloadFile({
+                fromUrl: url ?? "",
+                toFile: cacheDownloadPath,
+                headers: headers,
+                background: true,
+                begin: (res) => {
+                    this.updateDownloadTask(musicItem, {
+                        status: DownloadStatus.Downloading,
+                        downloadedSize: 0,
+                        fileSize: res.contentLength,
+                        jobId: res.jobId,
+                    });
+                },
+                progress: (res) => {
+                    this.updateDownloadTask(musicItem, {
+                        status: DownloadStatus.Downloading,
+                        downloadedSize: res.bytesWritten,
+                        fileSize: res.contentLength,
+                        jobId: res.jobId,
+                    });
+                },
+            });
+            await downloadPromise;
+        })();
 
         try {
             await promise;
