@@ -17,6 +17,8 @@ import Icon from "@/components/base/icon.tsx";
 import PluginManager from "@/core/pluginManager";
 import downloader from "@/core/downloader";
 import i18n from "@/core/i18n";
+import ThemeText from "@/components/base/themeText";
+import { formatRate } from "@/components/panels/types/playRate";
 
 export default function Operations() {
     const musicItem = useCurrentMusic();
@@ -82,6 +84,7 @@ export default function Operations() {
                         return;
                     }
                     showPanel("PlayRate", {
+                        currentRate: rate ?? 100,
                         async onRatePress(newRate) {
                             if (rate !== newRate) {
                                 try {
@@ -92,7 +95,20 @@ export default function Operations() {
                         },
                     });
                 }}>
-                <Image source={ImgAsset.rate[rate!]} style={styles.quality} />
+                {/*
+                  * 倍速图标只有 7 张（50~200），D16 把档位扩到 0.25x~3x 后
+                  * 其余档位取不到图，`source` 会是 undefined —— 这里退化成文本。
+                  */}
+                {ImgAsset.rate[rate!] ? (
+                    <Image
+                        source={ImgAsset.rate[rate!]}
+                        style={styles.quality}
+                    />
+                ) : (
+                    <ThemeText style={styles.quality}>
+                        {formatRate(rate ?? 100)}
+                    </ThemeText>
+                )}
             </Pressable>
             <Icon
                 name="chat-bubble-oval-left-ellipsis"
@@ -145,3 +161,4 @@ const styles = StyleSheet.create({
         height: rpx(52),
     },
 });
+
