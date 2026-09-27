@@ -15,7 +15,13 @@ import AppBar from "@/components/base/appBar";
 import ThemeText from "@/components/base/themeText";
 import StatusBar from "@/components/base/statusBar";
 import { useI18N } from "@/core/i18n";
-import { listTrashFiles, type ITrashFile } from "@/core/cloudDisk/trash";
+import {
+    listTrashFiles,
+    purgeFromTrash,
+    restoreFromTrash,
+    type ITrashFile,
+} from "@/core/cloudDisk/trash";
+import showToast from "@/utils/toast";
 import rpx from "@/utils/rpx";
 
 export default function CloudTrashPage() {
@@ -53,6 +59,35 @@ export default function CloudTrashPage() {
         return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
     };
 
+    /** 恢复到音乐目录 */
+    const onRestore = useCallback(
+        async (item: ITrashFile) => {
+            const target = await restoreFromTrash(item.path);
+            if (target) {
+                showToast.success(t("cloudMusic.trashRestoreDone"));
+                load();
+            } else {
+                showToast.warn(t("cloudMusic.trashFailed"));
+            }
+        },
+        [t, load],
+    );
+
+    /** 彻底删除（会真正丢数据） */
+    const onPurge = useCallback(
+        async (item: ITrashFile) => {
+            const ok = await purgeFromTrash(item.path);
+            if (ok) {
+                showToast.success(t("cloudMusic.trashPurgeDone"));
+            } else {
+                showToast.warn(t("cloudMusic.trashFailed"));
+            }
+            if (ok) {
+                load();
+            }
+        },
+        [t, load],
+    );
     return (
         <SafeAreaView edges={["top"]} style={styles.wrapper}>
             <StatusBar />
@@ -78,14 +113,30 @@ export default function CloudTrashPage() {
                     keyExtractor={item => item.path}
                     renderItem={({ item }) => (
                         <View style={styles.row}>
-                            <ThemeText fontSize="content" numberOfLines={1}>
-                                {item.name}
-                            </ThemeText>
-                            <ThemeText
-                                fontSize="description"
-                                fontColor="textSecondary">
-                                {formatSize(item.size)}
-                            </ThemeText>
+                            <View style={styles.info}>
+                                <ThemeText fontSize="content" numberOfLines={1}>
+                                    {item.name}
+                                </ThemeText>
+                                <ThemeText
+                                    fontSize="description"
+                                    fontColor="textSecondary">
+                                    {formatSize(item.size)}
+                                </ThemeText>
+                            </View>
+                            <View style={styles.actions}>
+                                <ThemeText
+                                    fontSize="description"
+                                    fontColor="primary"
+                                    onPress={() => onRestore(item)}>
+                                    {t("cloudMusic.trashRestore")}
+                                </ThemeText>
+                                <ThemeText
+                                    fontSize="description"
+                                    fontColor="textSecondary"
+                                    onPress={() => onPurge(item)}>
+                                    {t("cloudMusic.trashPurge")}
+                                </ThemeText>
+                            </View>
                         </View>
                     )}
                 />
@@ -107,5 +158,17 @@ const styles = StyleSheet.create({
     row: {
         paddingHorizontal: rpx(24),
         paddingVertical: rpx(20),
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    info: {
+        flex: 1,
+    },
+    actions: {
+        flexDirection: "row",
+        gap: rpx(24),
     },
 });
+
+
+

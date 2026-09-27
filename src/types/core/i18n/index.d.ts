@@ -54,6 +54,11 @@ export interface ILanguageData {
     "cloudMusic.trashTitle": string;
     "cloudMusic.trashLoading": string;
     "cloudMusic.trashEmpty": string;
+    "cloudMusic.trashRestore": string;
+    "cloudMusic.trashPurge": string;
+    "cloudMusic.trashRestoreDone": string;
+    "cloudMusic.trashPurgeDone": string;
+    "cloudMusic.trashFailed": string;
     "cloudMusic.uploading": string;
     "cloudMusic.uploadNoLocal": string;
     "cloudMusic.uploadResult": string;

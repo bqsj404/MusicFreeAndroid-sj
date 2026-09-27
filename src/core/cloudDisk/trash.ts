@@ -11,7 +11,7 @@
  *  - 清单记录用的是**逻辑路径**，因此同步时也按逻辑路径删。
  */
 import { createCloudDiskClient } from "./client";
-import { CLOUD_TRASH_DIR, TRASH_RENAME_MAX } from "./constant";
+import { CLOUD_MUSIC_DIR, CLOUD_TRASH_DIR, TRASH_RENAME_MAX } from "./constant";
 import { deleteByRemotePath } from "./uploadRecords";
 import {
     basenameWithoutExt,
@@ -138,3 +138,74 @@ export async function listTrashFiles(): Promise<ITrashFile[]> {
         return [];
     }
 }
+/**
+ * 把回收站里的文件恢复到音乐目录。
+ *
+ * 与 `moveToTrash` 反向：统一先归一到逻辑路径，再映射回服务端存储名。
+ * 目标已存在同名文件时**不覆盖**，改用 `歌名 (1).ext` 形式避免丢失数据。
+ *
+ * @param trashPath 回收站内的**存储路径**（列表项里的 `path`）
+ * @returns 成功时的远端存储路径；失败返回 null
+ */
+export async function restoreFromTrash(
+    trashPath: string,
+): Promise<string | null> {
+    const client = createCloudDiskClient();
+    if (!client || !trashPath) {
+        return null;
+    }
+    // 入参可能是存储路径或逻辑路径，先归一
+    const logical = toLogicalPath(trashPath);
+    if (!logical) {
+        return null;
+    }
+    const slash = logical.lastIndexOf("/");
+    const logicalName = slash >= 0 ? logical.slice(slash + 1) : logical;
+    let target = `${CLOUD_MUSIC_DIR}/${toStoredName(logicalName)}`;
+
+    try {
+        if (await client.exists(target)) {
+            // 不覆盖：退回「歌名 (1).ext」
+            const dot = logicalName.lastIndexOf(".");
+            const base = dot > 0 ? logicalName.slice(0, dot) : logicalName;
+            const ext = dot > 0 ? logicalName.slice(dot) : "";
+            let found = false;
+            for (let i = 1; i <= TRASH_RENAME_MAX; i++) {
+                const candidate = `${CLOUD_MUSIC_DIR}/${toStoredName(
+                    `${base} (${i})${ext}`,
+                )}`;
+                if (!(await client.exists(candidate))) {
+                    target = candidate;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return null;
+            }
+        }
+        await client.moveFile(trashPath, target);
+        return target;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * 彻底删除回收站里的文件。
+ *
+ * ⚠️ 这一步会真正丢数据，调用方应做二次确认。
+ */
+export async function purgeFromTrash(trashPath: string): Promise<boolean> {
+    const client = createCloudDiskClient();
+    if (!client || !trashPath) {
+        return false;
+    }
+    try {
+        await client.deleteFile(trashPath);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
