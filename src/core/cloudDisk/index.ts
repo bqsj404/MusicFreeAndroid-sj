@@ -26,6 +26,7 @@ import {
     readCloudDiskConfig,
 } from "./client";
 import { toLogicalName, toStoredName } from "./zoteroDavCompat";
+import { ensureCloudFileCached } from "./fileCache";
 import { cloudPluginPlatform, supportLocalMediaType } from "@/constants/commonConst";
 
 /** 远端文件（列表项） */
@@ -297,6 +298,10 @@ export async function resolveCloudStreamSource(
     url: string;
     headers: Record<string, string>;
     userAgent?: string;
+    /** 远端存储路径（供本地缓存使用） */
+    remotePath?: string;
+    /** 远端文件大小（缓存有效性判定） */
+    size?: number;
 } | null> {
     const extra = musicItem as ICommon.IMediaBase & Partial<ICloudExtra>;
     // 条目自带存储路径时直接用
@@ -304,7 +309,11 @@ export async function resolveCloudStreamSource(
     if (directPath && /^\/MusicFree\//.test(String(directPath))) {
         const direct = buildStreamSource(String(directPath));
         if (direct) {
-            return direct;
+            return {
+                ...direct,
+                remotePath: String(directPath),
+                size: extra.cloudSize,
+            };
         }
     }
 
@@ -330,7 +339,16 @@ export async function resolveCloudStreamSource(
     if (!remotePath) {
         return null;
     }
-    return buildStreamSource(remotePath);
+    const built = buildStreamSource(remotePath);
+    if (!built) {
+        return null;
+    }
+    const matched = cachedFiles?.find(file => file.path === remotePath);
+    return {
+        ...built,
+        remotePath,
+        size: matched?.size,
+    };
 }
 
 // ——— 歌词 ———
@@ -455,6 +473,24 @@ export async function buildCloudMediaSource(
     if (!source) {
         return null;
     }
+
+    // 优先走本地缓存：RNTP 没能把 headers 透传到 ExoPlayer（会导致 403），
+    // 而数据胶囊本就不支持 Range，所以「先下载再本地播放」是可靠路径。
+    // 失败时降级为直链（带上认证头，万一将来透传修好了就能直接流式播放）。
+    if (source.remotePath) {
+        try {
+            const localUri = await ensureCloudFileCached(
+                source.remotePath,
+                source.size ?? 0,
+            );
+            if (localUri) {
+                return { url: localUri };
+            }
+        } catch (e) {
+            // 落到直链
+        }
+    }
+
     return {
         url: source.url,
         headers: source.headers,
@@ -462,4 +498,6 @@ export async function buildCloudMediaSource(
         ...(source.userAgent ? { userAgent: source.userAgent } : {}),
     };
 }
+
+
 
