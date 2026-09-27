@@ -95,77 +95,70 @@ export default function CloudMusic() {
         }, [load]),
     );
 
+    /** 上传本地音乐到云盘 */
+    const onUploadLocal = useCallback(async () => {
+        const tasks = collectLocalTasks();
+        if (!tasks.length) {
+            showToast({
+                type: "warn",
+                message: t("cloudMusic.uploadNoLocal"),
+            });
+            return;
+        }
+        // 用 LoadingDialog 包住（上传期间有遮罩与进度语义，与备份页一致）
+        showDialog("LoadingDialog", {
+            title: t("cloudMusic.uploadLocal"),
+            promise: uploadTasksWithProgress(tasks, (done, total) => {
+                setUploadProgress(`${done}/${total}`);
+            }),
+            onResolve(result, hideDialog) {
+                hideDialog();
+                setUploadProgress("");
+                showToast({
+                    type: result.failed ? "warn" : "success",
+                    message: t("cloudMusic.uploadResult", {
+                        uploaded: String(result.uploaded),
+                        skipped: String(result.skipped),
+                        failed: String(result.failed),
+                    }),
+                });
+                invalidateCloudCache();
+                load(true);
+            },
+            onReject(reason, hideDialog) {
+                hideDialog();
+                setUploadProgress("");
+                showToast({
+                    type: "warn",
+                    message: String(reason?.message ?? reason),
+                });
+            },
+        });
+    }, [t, load]);
+
+    /** 清理云盘缓存 */
+    const onClearCache = useCallback(async () => {
+        const usage = await getCloudCacheUsage();
+        await clearCloudFileCache();
+        refreshCache();
+        showToast({
+            type: usage.files ? "success" : "warn",
+            message: t("cloudMusic.clearCacheDone"),
+        });
+    }, [t, refreshCache]);
     return (
         <SafeAreaView edges={["top"]} style={styles.wrapper}>
             <StatusBar />
             <AppBar
-                menu={[
+                actions={[
                     {
                         icon: "arrow-up-tray",
-                        title: t("cloudMusic.uploadLocal"),
-                        onPress: () => {
-                            const tasks = collectLocalTasks();
-                            if (!tasks.length) {
-                                showToast({
-                                    type: "warn",
-                                    message: t("cloudMusic.uploadNoLocal"),
-                                });
-                                return;
-                            }
-                            showDialog("LoadingDialog", {
-                                title: t("cloudMusic.uploadLocal"),
-                                promise: uploadTasksWithProgress(tasks, (done, total) => {
-                                    setUploadProgress(`${done}/${total}`);
-                                }),
-                                onResolve(result, hideDialog) {
-                                    hideDialog();
-                                    setUploadProgress("");
-                                    showToast({
-                                        type: result.failed ? "warn" : "success",
-                                        message: t("cloudMusic.uploadResult", {
-                                            uploaded: String(result.uploaded),
-                                            skipped: String(result.skipped),
-                                            failed: String(result.failed),
-                                        }),
-                                    });
-                                    invalidateCloudCache();
-                                    load(true);
-                                },
-                                onReject(reason, hideDialog) {
-                                    hideDialog();
-                                    setUploadProgress("");
-                                    showToast({
-                                        type: "warn",
-                                        message: String(reason?.message ?? reason),
-                                    });
-                                },
-                            });
-                        },
+                        onPress: onUploadLocal,
                     },
                     {
                         icon: "archive-box-x-mark",
-                        title: t("cloudMusic.clearCache", {
-                            size: cacheText,
-                        }),
-                        onPress: async () => {
-                            const usage = await getCloudCacheUsage();
-                            if (!usage.files) {
-                                showToast({
-                                    type: "warn",
-                                    message: t("cloudMusic.clearCacheDone"),
-                                });
-                                return;
-                            }
-                            await clearCloudFileCache();
-                            showToast({
-                                type: "success",
-                                message: t("cloudMusic.clearCacheDone"),
-                            });
-                            refreshCache();
-                        },
+                        onPress: onClearCache,
                     },
-                ]}
-                actions={[
                     {
                         icon: "arrow-path",
                         onPress: () => load(true),
@@ -226,6 +219,9 @@ function formatBytes(bytes: number): string {
     }
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+
+
 
 
 

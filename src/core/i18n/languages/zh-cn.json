@@ -41,6 +41,7 @@
     "cloudMusic.loadFailed": "云盘读取失败",
     "cloudMusic.clearCache": "云盘缓存 {size}",
     "cloudMusic.uploadLocal": "上传本地音乐到云盘",
+    "cloudMusic.uploading": "正在上传本地音乐…",
     "cloudMusic.uploadNoLocal": "本地音乐库为空，先去「本地音乐」扫描",
     "cloudMusic.uploadResult": "上传完成：新增 {uploaded}，跳过 {skipped}，失败 {failed}",
     "cloudMusic.clearCacheTitle": "清理云盘缓存",

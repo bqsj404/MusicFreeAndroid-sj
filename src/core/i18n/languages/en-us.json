@@ -41,6 +41,7 @@
     "cloudMusic.loadFailed": "Failed to load cloud music",
     "cloudMusic.clearCache": "Cloud cache {size}",
     "cloudMusic.uploadLocal": "Upload local music to cloud",
+    "cloudMusic.uploading": "Uploading local music…",
     "cloudMusic.uploadNoLocal": "Local library is empty. Scan it in Local Music first.",
     "cloudMusic.uploadResult": "Upload done: {uploaded} added, {skipped} skipped, {failed} failed",
     "cloudMusic.clearCacheTitle": "Clear cloud cache",

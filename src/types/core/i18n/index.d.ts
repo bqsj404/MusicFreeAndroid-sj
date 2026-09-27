@@ -51,6 +51,7 @@ export interface ILanguageData {
     "cloudMusic.loadFailed": string; // 云盘读取失败
     "cloudMusic.clearCache": string;
     "cloudMusic.uploadLocal": string;
+    "cloudMusic.uploading": string;
     "cloudMusic.uploadNoLocal": string;
     "cloudMusic.uploadResult": string;
     "cloudMusic.clearCacheTitle": string;
