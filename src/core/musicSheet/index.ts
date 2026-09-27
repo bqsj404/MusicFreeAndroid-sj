@@ -303,6 +303,57 @@ class MusicSheetClazz implements IInjectable {
     }
 
     /**
+     * D2：把各歌单里对某个条目的引用替换成另一个条目。
+     *
+     * 用于「自动换源（替换原歌单信息）」—— 换源成功后，歌单里那条记录的
+     * 来源应指向**真正播通**的那一个，否则下次还从死源开始。
+     *
+     * 直接改 storage 里的列表并整体写回（`storage.setMusicList`），
+     * 而不是逐个 remove+add —— 后者会打乱歌单顺序。
+     *
+     * @returns 被改动的歌单数量
+     */
+    replaceMusicReference(
+        oldItem: IMusic.IMusicItem,
+        newItem: IMusic.IMusicItem,
+    ): number {
+        if (!oldItem || !newItem) {
+            return 0;
+        }
+        const sheets = getDefaultStore().get(musicSheetsBaseAtom);
+        let changedSheets = 0;
+
+        sheets.forEach(sheet => {
+            const list = storage.getMusicList(sheet.id);
+            if (!list?.length) {
+                return;
+            }
+            let changed = false;
+            const newList = list.map(item => {
+                if (isSameMediaItem(item, oldItem)) {
+                    changed = true;
+                    // 保留原有的加入时间等附加信息，只替换来源本体
+                    return newItem;
+                }
+                return item;
+            });
+            if (!changed) {
+                return;
+            }
+            storage.setMusicList(sheet.id, newList);
+            // 让已打开的列表页感知变化
+            ee.emit("UpdateMusicList", {
+                sheetId: sheet.id,
+                // 条目内容变了但数量没变 —— 用 resort 让列表页重新拉取
+                updateType: "resort",
+            });
+            changedSheets += 1;
+        });
+
+        return changedSheets;
+    }
+
+    /**
      * 向歌单内添加音乐
      * @param sheetId 歌单id
      * @param musicItem 音乐
@@ -596,3 +647,4 @@ function useStarredSheets() {
 
 
 export { useSheetIsStarred, useSheetsBase, useSheetItem, useStarredSheets, useFavorite };
+

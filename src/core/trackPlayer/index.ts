@@ -33,6 +33,7 @@ import ReactNativeTrackPlayer, {
     useProgress,
 } from "react-native-track-player";
 import LocalMusicSheet from "../localMusicSheet";
+import MusicSheet from "@/core/musicSheet";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import { getSourceName } from "@/core/mediaSource";
 import toggleChain, { buildToggleGroupKey } from "@/core/playErrorChain";
@@ -1097,6 +1098,21 @@ class TrackPlayer extends EventEmitter<{
             }
             if (this.isCurrentMusic(similar as IMusic.IMusicItem)) {
                 toggleChain.markToggleSuccess();
+                if (mode === "toggle-replace") {
+                    /*
+                     * 「替换原歌单信息」与「不替换」的唯一差别就在这一步：
+                     * 把各歌单里对原条目的引用改成真正播通的来源，
+                     * 否则下次播放还从那个死源开始。
+                     */
+                    try {
+                        MusicSheet.replaceMusicReference(
+                            musicItem,
+                            similar as IMusic.IMusicItem,
+                        );
+                    } catch (e) {
+                        // 替换失败不影响本次播放
+                    }
+                }
                 return true;
             }
         }
@@ -1244,6 +1260,7 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
 
 
 
