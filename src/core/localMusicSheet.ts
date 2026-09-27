@@ -11,6 +11,14 @@ import {
 } from "@/utils/mediaUtils";
 import StateMapper from "@/utils/stateMapper";
 import { getStorage, setStorage } from "@/utils/storage";
+import {
+    addScanFolders,
+    beginScan,
+    failScan,
+    filterChangedFiles,
+    finishScan,
+    reportScanProgress,
+} from "./localMusicScan";
 import CryptoJs from "crypto-js";
 import { nanoid } from "nanoid";
 import { useEffect, useState } from "react";
@@ -156,52 +164,124 @@ function cancelImportLocal() {
 
 // 导入本地音乐
 const groupNum = 25;
-async function importLocal(_folderPaths: string[]) {
+
+/**
+ * 按文件夹扫描并入库。
+ *
+ * @param folderPaths 绝对路径（不带 file://）
+ * @param options.incremental 只解析「大小/mtime 变化过」的文件（默认 true）
+ * @param options.rememberFolders 是否把这些目录记入白名单（默认 true）
+ */
+async function importLocal(
+    _folderPaths: string[],
+    options: { incremental?: boolean; rememberFolders?: boolean } = {},
+) {
+    const { incremental = true, rememberFolders = true } = options;
     const folderPaths = [..._folderPaths.map(it => addFileScheme(it))];
-    const { musicList, token } = await getMusicStats(folderPaths);
-    if (token !== importToken) {
-        throw new Error("Import Broken");
+
+    beginScan();
+    if (rememberFolders) {
+        addScanFolders(_folderPaths);
     }
-    // 分组请求，不然序列化可能出问题
-    let metas: IBasicMeta[] = [];
-    const groups = Math.ceil(musicList.length / groupNum);
-    for (let i = 0; i < groups; ++i) {
-        metas = metas.concat(
-            await mp3Util.getMediaMeta(
-                musicList.slice(i * groupNum, (i + 1) * groupNum),
-            ),
-        );
-    }
-    if (token !== importToken) {
-        throw new Error("Import Broken");
-    }
-    const musicItems: IMusic.IMusicItem[] = await Promise.all(
-        musicList.map(async (musicPath, index) => {
-            let { platform, id, title, artist } =
-                parseFilename(getFileName(musicPath, true)) ?? {};
-            const meta = metas[index];
-            if (!platform || !id) {
-                platform = "本地";
-                id = CryptoJs.MD5(musicPath).toString(CryptoJs.enc.Hex);
+
+    let changedPaths: string[] | null = null;
+    let skippedCount = 0;
+    try {
+        const { musicList, token } = await getMusicStats(folderPaths);
+        if (token !== importToken) {
+            throw new Error("Import Broken");
+        }
+
+        if (musicList.length === 0) {
+            finishScan({ added: 0, skipped: 0, total: 0 });
+            return;
+        }
+
+        // 增量：先筛出「变化过」的文件，未变化的跳过元数据解析
+        if (incremental) {
+            const { changed, skipped } = await filterChangedFiles(musicList);
+            changedPaths = changed;
+            skippedCount = skipped;
+            if (!changed.length) {
+                finishScan({
+                    added: 0,
+                    skipped: skippedCount,
+                    total: musicList.length,
+                });
+                return;
             }
-            return {
-                id,
-                platform,
-                title: title ?? meta?.title ?? getFileName(musicPath),
-                artist: artist ?? meta?.artist ?? "未知歌手",
-                duration: parseInt(meta?.duration ?? "0", 10) / 1000,
-                album: meta?.album ?? "未知专辑",
-                artwork: "",
-                [internalSerializeKey]: {
-                    localPath: musicPath,
-                },
-            } as IMusic.IMusicItem;
-        }),
-    );
-    if (token !== importToken) {
-        throw new Error("Import Broken");
+        } else {
+            changedPaths = musicList;
+        }
+
+        reportScanProgress({
+            phase: "parsing",
+            current: 0,
+            total: changedPaths.length,
+            skipped: skippedCount,
+        });
+
+        // 分组请求，不然序列化可能出问题
+        let metas: IBasicMeta[] = [];
+        const groups = Math.ceil(changedPaths.length / groupNum);
+        for (let i = 0; i < groups; ++i) {
+            metas = metas.concat(
+                await mp3Util.getMediaMeta(
+                    changedPaths.slice(i * groupNum, (i + 1) * groupNum),
+                ),
+            );
+            if (token !== importToken) {
+                throw new Error("Import Broken");
+            }
+            reportScanProgress({
+                phase: "parsing",
+                current: Math.min((i + 1) * groupNum, changedPaths.length),
+                total: changedPaths.length,
+                skipped: skippedCount,
+            });
+        }
+
+        const musicItems: IMusic.IMusicItem[] = await Promise.all(
+            changedPaths.map(async (musicPath, index) => {
+                let { platform, id, title, artist } =
+                    parseFilename(getFileName(musicPath, true)) ?? {};
+                const meta = metas[index];
+                if (!platform || !id) {
+                    platform = "本地";
+                    id = CryptoJs.MD5(musicPath).toString(CryptoJs.enc.Hex);
+                }
+                return {
+                    id,
+                    platform,
+                    title: title ?? meta?.title ?? getFileName(musicPath),
+                    artist: artist ?? meta?.artist ?? "未知歌手",
+                    duration: parseInt(meta?.duration ?? "0", 10) / 1000,
+                    album: meta?.album ?? "未知专辑",
+                    artwork: "",
+                    [internalSerializeKey]: {
+                        localPath: musicPath,
+                    },
+                } as IMusic.IMusicItem;
+            }),
+        );
+        if (token !== importToken) {
+            throw new Error("Import Broken");
+        }
+        addMusic(musicItems);
+        finishScan({
+            added: musicItems.length,
+            skipped: skippedCount,
+            total: musicList.length,
+        });
+    } catch (e: any) {
+        // 用户中断不算错误
+        if (e?.message === "Import Broken") {
+            finishScan({ skipped: skippedCount });
+            return;
+        }
+        failScan(e?.message ?? String(e));
+        throw e;
     }
-    addMusic(musicItems);
 }
 
 /** 是否为本地音乐 */

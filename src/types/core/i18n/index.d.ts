@@ -117,6 +117,11 @@ export interface ILanguageData {
 
     // 本地音乐相关
     "localMusic.scanLocalMusic": string; // 扫描本地音乐
+    "localMusic.scanning": string;
+    "localMusic.parsing": string;
+    "localMusic.rescan": string;
+    "localMusic.noFolderRemembered": string;
+    "localMusic.scanResult": string;
     "localMusic.beginScan": string; // 开始扫描
     "localMusic.downloadList": string; // 下载列表
 
