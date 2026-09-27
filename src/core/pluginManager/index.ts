@@ -1,8 +1,4 @@
-import {
-    emptyFunction,
-    localPluginHash,
-    localPluginPlatform,
-} from "@/constants/commonConst";
+import { emptyFunction } from "@/constants/commonConst";
 import pathConst from "@/constants/pathConst";
 import {
     IInstallPluginConfig,
@@ -22,6 +18,12 @@ import { showToast } from "@/components/base/toast";
 import { devLog, errorLog, trace } from "../../utils/log";
 import pluginMeta from "./meta";
 import { localFilePlugin, Plugin, PluginState } from "./plugin";
+import {
+    getBuiltinPluginByHash,
+    getBuiltinPluginByName,
+    getBuiltinPlugins as getBuiltinPluginsFromRegistry,
+    hasBuiltinPlugin,
+} from "./builtin/registry";
 import i18n from "../i18n";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
@@ -454,23 +456,40 @@ class PluginManager implements IPluginManager, IInjectable {
     /**
      * 通过名称获取插件
      * @param name - 要查找的插件名称
-     * @returns 匹配名称的插件实例或本地文件插件
+     * @returns 匹配名称的插件实例；内建插件（本地 / 云盘）优先命中
      */
     getByName(name: string) {
-        return name === localPluginPlatform
-            ? localFilePlugin
-            : this.getPlugins().find(_ => _.name === name);
+        return (
+            getBuiltinPluginByName(name) ??
+            this.getPlugins().find(_ => _.name === name)
+        );
     }
 
     /**
      * 通过哈希值获取插件
      * @param hash - 要查找的插件哈希值
-     * @returns 匹配哈希的插件实例或本地文件插件
+     * @returns 匹配哈希的插件实例；内建插件的**逻辑 hash 常量**同样命中
      */
     getByHash(hash: string) {
-        return hash === localPluginHash
-            ? localFilePlugin
-            : this.getPlugins().find(_ => _.hash === hash);
+        return (
+            getBuiltinPluginByHash(hash) ??
+            this.getPlugins().find(_ => _.hash === hash)
+        );
+    }
+
+    /**
+     * 全部内建插件实例（本地 / 云盘）。
+     *
+     * 内建插件不在 `pluginsAtom` 里，`getPlugins()` 只含外部插件；
+     * 需要遍历「所有可用插件」时用本方法合并两者。
+     */
+    getBuiltinPlugins() {
+        return getBuiltinPluginsFromRegistry();
+    }
+
+    /** 某个平台名是否属于内建插件 */
+    isBuiltinPlugin(name: string) {
+        return hasBuiltinPlugin(name);
     }
 
     /**

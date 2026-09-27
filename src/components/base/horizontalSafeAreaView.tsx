@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 interface IHorizontalSafeAreaViewProps {
     mode?: "margin" | "padding";
-    children: JSX.Element | JSX.Element[];
+    /** React 18 允许条件渲染产生 null / undefined，这里放宽类型 */
+    children?: React.ReactNode;
     style?: StyleProp<ViewStyle>;
 }
 export default function HorizontalSafeAreaView(

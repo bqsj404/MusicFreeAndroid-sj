@@ -1,6 +1,9 @@
 import {
     CacheControl,
+    cloudPluginHash,
+    cloudPluginPlatform,
     internalSerializeKey,
+    localPluginHash,
     localPluginPlatform,
 } from "@/constants/commonConst";
 import pathConst from "@/constants/pathConst";
@@ -30,6 +33,13 @@ import { devLog, errorLog, trace } from "../../utils/log";
 import Network from "../../utils/network";
 import MediaCache from "../mediaCache";
 import _internalPluginMeta from "./meta";
+import {
+    registerBuiltinPlugin,
+} from "./builtin/registry";
+import {
+    CLOUD_PLUGIN_INTERNAL_PATH,
+    createCloudPluginDefine,
+} from "./builtin/cloudPlugin";
 import { IPluginManager } from "@/types/core/pluginManager";
 
 
@@ -1117,4 +1127,32 @@ const localFilePluginDefine: IPlugin.IPluginDefine = {
 export const localFilePlugin = new Plugin(function () {
     return localFilePluginDefine;
 }, "internal-plugin://local-file-plugin");
+
+/**
+ * 云盘内建插件（定义在 `./builtin/cloudPlugin.ts`，这里统一构造实例）。
+ *
+ * 与「本地」一样：实例不落盘、不进 `pluginsAtom`、不出现在插件管理页，
+ * 只通过内建注册表被 `PluginManager.getByName` / `getByHash` 命中。
+ */
+export const cloudPlugin = new Plugin(function () {
+    return createCloudPluginDefine();
+}, CLOUD_PLUGIN_INTERNAL_PATH);
+
+// 注册内建插件实例（必须在两个实例都构造完成之后）
+registerBuiltinPlugin(localFilePlugin, {
+    platform: localPluginPlatform,
+    hash: localPluginHash,
+});
+registerBuiltinPlugin(cloudPlugin, {
+    platform: cloudPluginPlatform,
+    hash: cloudPluginHash,
+});
+
+export {
+    getBuiltinPluginByHash,
+    getBuiltinPluginByName,
+    getBuiltinPlugins,
+    hasBuiltinPlugin,
+    isBuiltinPluginPlatform,
+} from "./builtin/registry";
 

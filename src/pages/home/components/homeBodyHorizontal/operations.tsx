@@ -40,6 +40,13 @@ export default function Operations() {
                 navigate(ROUTE_PATH.LOCAL);
             },
         },
+        {
+            iconName: "circle-stack",
+            title: t("cloudMusic.title"),
+            action() {
+                navigate(ROUTE_PATH.CLOUD_MUSIC);
+            },
+        },
     ] as const;
 
     return (
@@ -48,7 +55,7 @@ export default function Operations() {
                 <ActionButton
                     style={[
                         styles.actionButtonStyle,
-                        index % 4 ? styles.actionMarginLeft : null,
+                        index > 0 ? styles.actionMarginLeft : null,
                     ]}
                     key={action.title}
                     focusId={`home-action-${index}`}

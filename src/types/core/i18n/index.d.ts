@@ -46,6 +46,9 @@ export interface ILanguageData {
     "sidebar.basicSettings": string; // 基本设置
     "sidebar.pluginManagement": string; // 插件管理
     "sidebar.themeSettings": string; // 主题设置
+    "cloudMusic.title": string; // 云盘音乐
+    "cloudMusic.notConfigured": string; // 未配置提示
+    "cloudMusic.loadFailed": string; // 云盘读取失败
     // 键盘快捷键设置
     "setting.shortcut.title": string; // 键盘快捷键
     "setting.shortcut.hint": string; // 说明

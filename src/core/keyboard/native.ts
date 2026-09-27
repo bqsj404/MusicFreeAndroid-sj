@@ -60,6 +60,12 @@ export function isNativeKeyboardEnabled(): boolean {
  * 内部状态统一走这个通道，便于真机排查。
  */
 export function keyboardLog(tag: string, message: unknown) {
+    // release bundle 下 console.log 不进 logcat，但 error 级别可以
+    try {
+        console.error(`[${tag}]`, message);
+    } catch (e) {
+        // ignore
+    }
     try {
         NativeKeyboard?.log?.(tag, typeof message === "string" ? message : JSON.stringify(message));
     } catch (e) {

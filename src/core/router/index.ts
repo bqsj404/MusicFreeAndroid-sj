@@ -46,6 +46,8 @@ export const ROUTE_PATH = {
     SET_CUSTOM_THEME: "set-custom-theme",
     /** 权限管理 */
     PERMISSIONS: "permissions",
+    /** 云盘音乐（WebDAV） */
+    CLOUD_MUSIC: "cloud-music",
 } as const;
 
 type ValueOf<T> = T[keyof T];
@@ -57,6 +59,7 @@ interface RouterParams extends RouterParamsBase {
     home: undefined;
     "music-detail": undefined;
     "search-page": undefined;
+    "cloud-music": undefined;
     "local-sheet-detail": {
         id: string;
     };

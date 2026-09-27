@@ -38,7 +38,18 @@ export default function Operations() {
                 navigate(ROUTE_PATH.LOCAL);
             },
         },
+        {
+            iconName: "circle-stack",
+            title: t("cloudMusic.title"),
+            action() {
+                navigate(ROUTE_PATH.CLOUD_MUSIC);
+            },
+        },
     ] as const;
+
+    const COUNT = actionButtons.length;
+    // 竖屏一行等分：容器内宽减掉 (COUNT-1) 个间距后平分
+    const buttonWidth = (rpx(750) - rpx(48) - rpx(24) * (COUNT - 1)) / COUNT;
 
     return (
         <View style={styles.container}>
@@ -46,7 +57,8 @@ export default function Operations() {
                 <ActionButton
                     style={[
                         styles.actionButtonStyle,
-                        index % 4 ? styles.actionMarginLeft : null,
+                        { width: buttonWidth },
+                        index > 0 ? styles.actionMarginLeft : null,
                     ]}
                     key={action.title}
                     focusId={`home-action-${index}`}
@@ -68,7 +80,6 @@ const styles = StyleSheet.create({
         flexWrap: "nowrap",
     },
     actionButtonStyle: {
-        width: rpx(157.5),
         height: rpx(160),
         borderRadius: rpx(18),
     },

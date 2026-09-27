@@ -12,6 +12,38 @@ export const musicHistorySheetId = "history-music-sheet";
 export const localPluginPlatform = "本地";
 export const localPluginHash = "local-plugin-hash";
 
+/**
+ * 内建插件：云盘（WebDAV 音乐库）。
+ *
+ * 与桌面版对齐：桌面版 `BUILTIN_PLUGIN_HASHES = [本地, 云盘]`，
+ * 内建插件的 hash 固定、不进插件安装目录、不出现在插件管理页，
+ * 也不能被卸载 / 更新。
+ */
+export const cloudPluginPlatform = "云盘";
+export const cloudPluginHash = "cloud-plugin-hash";
+
+/** 内建插件平台名集合（判定「是否是内建来源」用） */
+export const builtinPluginPlatforms: string[] = [
+    localPluginPlatform,
+    cloudPluginPlatform,
+];
+
+/** 内建插件 hash 集合（过滤与保护用） */
+export const builtinPluginHashes: string[] = [
+    localPluginHash,
+    cloudPluginHash,
+];
+
+/** 判断平台名是否属于内建插件 */
+export function isBuiltinPluginPlatform(platform?: string | null): boolean {
+    return !!platform && builtinPluginPlatforms.includes(platform);
+}
+
+/** 判断 hash 是否属于内建插件 */
+export function isBuiltinPluginHash(hash?: string | null): boolean {
+    return !!hash && builtinPluginHashes.includes(hash);
+}
+
 export const internalFakeSoundKey = "fake-key";
 
 const emptyFunction = () => {};

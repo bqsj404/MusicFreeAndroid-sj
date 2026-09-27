@@ -17,6 +17,7 @@ import PluginSheetDetail from "@/pages/pluginSheetDetail";
 import History from "@/pages/history";
 import SetCustomTheme from "@/pages/setCustomTheme";
 import Permissions from "@/pages/permissions";
+import CloudMusic from "@/pages/cloudMusic";
 import { ROUTE_PATH } from "@/core/router/index.ts";
 
 type ValueOf<T> = T[keyof T];
@@ -104,5 +105,9 @@ export const routes: Array<IRoutes> = [
     {
         path: ROUTE_PATH.PERMISSIONS,
         component: Permissions,
+    },
+    {
+        path: ROUTE_PATH.CLOUD_MUSIC,
+        component: CloudMusic,
     },
 ];
