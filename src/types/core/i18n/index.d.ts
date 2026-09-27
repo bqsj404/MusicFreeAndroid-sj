@@ -282,6 +282,11 @@ export interface ILanguageData {
     "toast.importing": string; // 正在导入
     "toast.failToImportSheet": string; // 歌单导入失败
     "toast.settingSuccess": string; // 设置成功
+    "selection.selectedCount": string;
+    "selection.selectAll": string;
+    "selection.invert": string;
+    "selection.clear": string;
+    "selection.exit": string;
     "lyricManager.title": string;
     "lyricManager.scope.local": string;
     "lyricManager.scope.cache": string;

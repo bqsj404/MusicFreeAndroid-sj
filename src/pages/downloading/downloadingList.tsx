@@ -13,6 +13,7 @@ import downloader, {
 import { FlashList } from "@shopify/flash-list";
 import { useI18N } from "@/core/i18n";
 import Toast from "@/utils/toast";
+import { useSelection, type ISelectionApi } from "@/core/selection";
 
 /** 列表筛选（D11「单列表三类记录」用筛选，而不是拆成多个页面） */
 type DownloadFilter = "all" | "active" | "completed" | "failed";
@@ -64,11 +65,14 @@ function getStatusDescription(
 interface IRowProps {
     record: IDownloadRecord;
     onChanged: () => void;
+    selection: ISelectionApi<IDownloadRecord>;
 }
 
 function DownloadingListItem(props: IRowProps) {
-    const { record, onChanged } = props;
+    const { record, onChanged, selection } = props;
     const { t } = useI18N();
+    const rowKey = `dl-${record.key}`;
+    const selected = selection.isSelected(rowKey);
 
     /** 依据状态决定可用操作 */
     const actions = useMemo(() => {
@@ -118,21 +122,40 @@ function DownloadingListItem(props: IRowProps) {
     }, [record, t, onChanged]);
 
     return (
-        <ListItem withHorizontalPadding>
+        <ListItem
+            withHorizontalPadding
+            onLongPress={() => {
+                selection.enter(rowKey);
+            }}
+            onPress={() => {
+                // 多选模式下点击=切换选中；否则交给行内操作按钮
+                if (selection.selectMode) {
+                    selection.toggle(rowKey);
+                }
+            }}>
+            {selection.selectMode ? (
+                <ThemeText
+                    fontSize="subTitle"
+                    fontColor={selected ? "primary" : "textSecondary"}
+                    style={style.checkbox}>
+                    {selected ? "☑" : "☐"}
+                </ThemeText>
+            ) : null}
             <ListItem.Content
                 title={record.musicItem.title}
                 description={getStatusDescription(record, t)}
             />
-            {actions.map(action => (
-                <ThemeText
-                    key={action.label}
-                    fontSize="description"
-                    fontColor="primary"
-                    style={style.rowAction}
-                    onPress={action.onPress}>
-                    {action.label}
-                </ThemeText>
-            ))}
+            {!selection.selectMode &&
+                actions.map(action => (
+                    <ThemeText
+                        key={action.label}
+                        fontSize="description"
+                        fontColor="primary"
+                        style={style.rowAction}
+                        onPress={action.onPress}>
+                        {action.label}
+                    </ThemeText>
+                ))}
         </ListItem>
     );
 }
@@ -178,6 +201,15 @@ export default function DownloadingList() {
         return records.filter(record => record.kind === filter);
     }, [records, filter]);
 
+    // D15：通用多选语义。键盘 Ctrl+A（全选）/ Ctrl+I（反选）/ Esc（退出）
+    // / Shift+↑↓（范围）由 hook 统一接管。
+    // 注意「全选」与范围选择只作用于**当前筛选后的可见项** —— 这正是
+    // 桌面版「筛选 + 多选」联动的语义。
+    const selection = useSelection({
+        items: filtered,
+        keyOf: record => `dl-${record.key}`,
+    });
+
     const counts = useMemo(
         () => ({
             all: records.length,
@@ -200,24 +232,54 @@ export default function DownloadingList() {
 
     return (
         <View style={style.wrapper}>
-            {/* 筛选栏：单列表 + 三类筛选 */}
-            <View style={style.filterBar}>
-                {FILTERS.map(key => (
-                    <ThemeText
-                        key={key}
-                        fontSize="description"
-                        fontColor={filter === key ? "primary" : "textSecondary"}
-                        onPress={() => setFilter(key)}>
-                        {`${t(`downloading.filter.${key}`)} (${counts[key]})`}
+            {selection.selectMode ? (
+                /* D15：多选操作栏（替代筛选栏） */
+                <View style={[style.filterBar, style.actionBar]}>
+                    <ThemeText fontSize="description" fontColor="primary">
+                        {t("selection.selectedCount", {
+                            count: String(selection.selectedKeys.size),
+                        })}
                     </ThemeText>
-                ))}
-                <ThemeText
-                    fontSize="description"
-                    fontColor="textSecondary"
-                    onPress={onClearInactive}>
-                    {t("downloading.action.clearInactive")}
-                </ThemeText>
-            </View>
+                    <ThemeText
+                        fontSize="description"
+                        fontColor="textSecondary"
+                        onPress={selection.selectAll}>
+                        {t("selection.selectAll")}
+                    </ThemeText>
+                    <ThemeText
+                        fontSize="description"
+                        fontColor="textSecondary"
+                        onPress={selection.invert}>
+                        {t("selection.invert")}
+                    </ThemeText>
+                    <ThemeText
+                        fontSize="description"
+                        fontColor="textSecondary"
+                        onPress={selection.exit}>
+                        {t("selection.exit")}
+                    </ThemeText>
+                </View>
+            ) : (
+                <View style={style.filterBar}>
+                    {FILTERS.map(key => (
+                        <ThemeText
+                            key={key}
+                            fontSize="description"
+                            fontColor={
+                                filter === key ? "primary" : "textSecondary"
+                            }
+                            onPress={() => setFilter(key)}>
+                            {`${t(`downloading.filter.${key}`)} (${counts[key]})`}
+                        </ThemeText>
+                    ))}
+                    <ThemeText
+                        fontSize="description"
+                        fontColor="textSecondary"
+                        onPress={onClearInactive}>
+                        {t("downloading.action.clearInactive")}
+                    </ThemeText>
+                </View>
+            )}
 
             {filtered.length === 0 ? (
                 <View style={style.empty}>
@@ -231,7 +293,11 @@ export default function DownloadingList() {
                     data={filtered}
                     keyExtractor={item => `dl-${item.key}`}
                     renderItem={({ item }) => (
-                        <DownloadingListItem record={item} onChanged={reload} />
+                        <DownloadingListItem
+                            record={item}
+                            onChanged={reload}
+                            selection={selection}
+                        />
                     )}
                 />
             )}
@@ -262,4 +328,11 @@ const style = StyleSheet.create({
     rowAction: {
         paddingHorizontal: rpx(16),
     },
+    checkbox: {
+        paddingHorizontal: rpx(12),
+    },
+    actionBar: {
+        gap: rpx(16),
+    },
 });
+
