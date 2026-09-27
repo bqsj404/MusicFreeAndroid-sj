@@ -107,7 +107,15 @@ export function buildStreamHeaders(): {
     const zoteroUa = isZoteroOnlyDav(config.url)
         ? davExtraHeaders(config.url)?.["User-Agent"]
         : undefined;
-    return zoteroUa ? { headers, userAgent: zoteroUa } : { headers };
+    // 关键：UA 必须放在 headers 里
+    //  - RNTP 的 JS 实现**不转发** Track.userAgent 字段（仅类型声明，全仓无赋值点），
+    //    所以走 userAgent 字段到不了 ExoPlayer
+    //  - kotlinaudio 的字节码顺序是 setUserAgent(...) → setDefaultRequestProperties(headers)，
+    //    后者会后设覆盖前者，因此 headers 里的 User-Agent 才是最终生效的那个
+    if (zoteroUa) {
+        headers["User-Agent"] = zoteroUa;
+    }
+    return { headers, userAgent: zoteroUa };
 }
 
 /** 判断错误是否为「远端不存在」 */
@@ -121,4 +129,5 @@ export function isNotFoundError(e: any): boolean {
 }
 
 export { isZoteroOnlyDav, davExtraHeaders };
+
 
