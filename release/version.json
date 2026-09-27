@@ -1,3 +1,4 @@
-{"version":"0.6.2","changeLog":[
-  "【优化】优化了软件启动速度 (需要在【侧边栏-基本设置-插件】中打开【启用插件懒加载】开关)"
-],"download":["https://r0rvr854dd1.feishu.cn/drive/folder/KLqKfWOA3lx8MKdo8xNcYpR8n7t"]}
+{"version":"0.6.2-sj","changeLog":[
+  "【sj 变体】基于 MusicFree 0.6.2 修改：独立包名（可与原版并存）、更新源指向本仓库、关于页与署名调整",
+  "后续版本变更见本仓库 Releases：https://github.com/bqsj404/MusicFreeAndroid-sj/releases"
+],"download":["https://github.com/bqsj404/MusicFreeAndroid-sj/releases"]}

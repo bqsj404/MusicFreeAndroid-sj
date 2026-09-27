@@ -1,17 +1,14 @@
-# MusicFree
+# MusicFree (sj variant)
+
+> **About this repository**: Based on MusicFree | Original author: maotoumao (猫头猫) | Maintainer: 不甚解
+>
+> This is a personal variant, **not an official build**. Please report issues in this repository rather than to the original author.
+> Fork repository: <https://github.com/bqsj404/MusicFreeAndroid-sj>
 
 [中文](./readme.md) | **English**
 
-![GitHub Repo stars](https://img.shields.io/github/stars/maotoumao/MusicFree) 
-![GitHub forks](https://img.shields.io/github/forks/maotoumao/MusicFree)
-![star](https://gitcode.com/maotoumao/MusicFree/star/badge.svg)
 
-![GitHub License](https://img.shields.io/github/license/maotoumao/MusicFree)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/maotoumao/MusicFree/total)
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/maotoumao/MusicFree)
-![GitHub package.json version](https://img.shields.io/github/package-json/v/maotoumao/MusicFree)
 
-<a href="https://trendshift.io/repositories/1028" target="_blank"><img src="https://trendshift.io/api/badge/repositories/1028" alt="maotoumao%2FMusicFree | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 ---
 
@@ -19,34 +16,26 @@
 
 A plugin-based, customizable, ad-free music player that currently supports Android and Harmony OS only.
 
-> **Desktop version is here: <https://github.com/maotoumao/MusicFreeDesktop>**
+> **Desktop version of this variant**: <https://github.com/bqsj404/MusicFreeDesktop-sj>
 
-If you need to stay updated on future developments, you can follow the WeChat official account below; if you have questions, you can leave feedback directly in the issue section or the official account.
 
-![WeChat Official Account](./src/assets/imgs/wechat_channel.jpg)
 
-For software download methods, plugin usage instructions, and plugin development documentation, please visit <https://musicfree.catcat.work>.
+For software download methods, plugin usage instructions, and plugin development documentation, please refer to the original site <https://musicfree.catcat.work>.
 
 > [!NOTE]
 > - If you see paid/ad-free/cracked versions on other platforms, they are all fake. This is an open source project to begin with. **Please report paid versions directly when encountered**;
 > - The software is primarily for personal use, shared to hopefully help those in need; it's a hobby project that will be maintained as much as possible, but daily development time is limited (about half an hour), and it's expected to remain in unstable testing versions for a long time with irregular update frequency. Please use with caution;
 > - Third-party plugins and the data they generate are not related to this software. Please use legally and compliantly, and delete any copyright data that may be generated in a timely manner.
 > - **Please do not promote with VIP/cracked version as a gimmick**. The example repository is based on public internet API wrappers and **filters out all VIP, preview, and paid songs**. The example repository will **not provide plugins with cracking functionality** in the future;
-> - Information about this software **will only be actively published in Git repositories and the WeChat official account "一只猫头猫"**. If you wish to write articles introducing this software, feel free to do so, but please **describe truthfully, and please blur the plugin sources when involving the example repository**. Don't add unreal features to the software (although I wish it had them); in case of conflicting descriptions, this repository shall prevail.
+> - Information about this software **will only be actively published in Git repositories**. If you wish to write articles introducing this software, feel free to do so, but please **describe truthfully, and please blur the plugin sources when involving the example repository**. Don't add unreal features to the software (although I wish it had them); in case of conflicting descriptions, this repository shall prevail.
 
 ## Project Usage Agreement:
 This project is open sourced under the AGPL 3.0 license. Please comply with the open source license when using this project.
 In addition, please ensure you understand the following additional notes when using the code:
 
-1. For packaging and redistribution, **please retain the code source**: https://github.com/maotoumao/MusicFree
+1. For packaging and redistribution, **please retain the code source**: original <https://github.com/maotoumao/MusicFree>, this variant <https://github.com/bqsj404/MusicFreeAndroid-sj>
 2. Please do not use for commercial purposes; use the code legally and compliantly;
 3. If the open source license changes, it will be updated in this GitHub repository without separate notice.
-
-> [!CAUTION]
-> ### 👎 Hall of Shame
-> 👎 MusicFree apps on <ins>Xiaomi/Huawei/Vivo app stores</ins> are not related to this software. **They are adware that misappropriates this software's name and logo**. Please be cautious to avoid being deceived.
->
-> 👎 速悦音乐 is based on secondary development of this software, with changes only including built-in plugins, UI modifications, and traffic diversion. **It has not complied with this project's open source license and refuses to communicate**.
 
 ## Features
 
@@ -78,11 +67,11 @@ After downloading the app, you just need to install plugins in the sidebar Setti
 
 You can directly click "Install plugin from network", then enter <https://gitee.com/maotoumao/MusicFreePlugins/raw/master/plugins.json> and click confirm to install.
 
-For detailed usage instructions with images, please refer to the WeChat official account: [MusicFree Plugin Usage Guide](https://mp.weixin.qq.com/s?__biz=MzkxOTM5MDI4MA==&mid=2247483875&idx=1&sn=aedf8bb909540634d927de7fd2b4b8b1&chksm=c1a390c4f6d419d233908bb781d418c6b9fd2ca82e9e93291e7c93b8ead3c50ca5ae39668212#rd), or the website: https://musicfree.catcat.work/usage/mobile/install-plugin.html
+For detailed usage instructions, please refer to the plugin repository: <https://github.com/bqsj404/MusicFreePlugins-sj>
 
 ## Download
 
-Please go to the release page: [Link](https://github.com/maotoumao/MusicFree/releases) (if you can't open it, you can replace github with gitee). You can also reply "Musicfree" on the WeChat official account.
+Please go to this variant's release page: [Link](https://github.com/bqsj404/MusicFreeAndroid-sj/releases)
 
 ## Q&A
 
@@ -94,17 +83,16 @@ For casual chat, you can go to [QQ Channel](https://pd.qq.com/s/cyxnf0jj1)~
 
 ## WIP
 
-If you have new requirements that need discussion, you can leave a message on the WeChat official account backend/submit an issue/or start a topic in discussions.
+If you have new requirements to discuss, please open an issue or discussion in this repository.
 
 ## Support This Project
 
 If you like this project, or hope I can continue maintaining it, you can support me through any of the following ways ;)
 
 1. Star this project and share it with people around you;
-2. Follow the WeChat official account 👇 or Bilibili [不想睡觉猫头猫](https://space.bilibili.com/12866223) for the latest information;
+2. Follow this variant's Releases for the latest version; the original author's channels are listed in the repository description.
 3. Follow maotoumao's [XiaoHongShu](https://www.xiaohongshu.com/user/profile/5ce6085200000000050213a6?xhsshare=CopyLink&appuid=5ce6085200000000050213a6&apptime=1714394544) or [X](https://twitter.com/upupfun). Although I might not update software-related information there, it's still support~
 
-![WeChat Official Account](./src/assets/imgs/wechat_channel.jpg)
 
 Thanks to the following friends for their recommendations, very surprising and delightful ~~~
 

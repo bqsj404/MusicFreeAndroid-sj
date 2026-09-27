@@ -86,3 +86,10 @@ scripts/
 .expo
 dist/
 web-build/
+# RN: JS bundle 与 bundle --assets-dest 生成的图片资源（由 android-verify.ps1 每次构建生成，不入库）
+android/app/src/main/assets/
+android/app/src/main/res/drawable-hdpi/
+android/app/src/main/res/drawable-mdpi/
+android/app/src/main/res/drawable-xhdpi/
+android/app/src/main/res/drawable-xxhdpi/
+android/app/src/main/res/drawable-xxxhdpi/

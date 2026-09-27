@@ -125,7 +125,9 @@ android {
     namespace "fun.upup.musicfree"
 
     defaultConfig {
-        applicationId "fun.upup.musicfree"
+        // sj 变体：使用独立 applicationId，可与原版（fun.upup.musicfree）并存安装
+        // namespace 保持原值不动，避免改动 Kotlin/Java 源码里的 package 声明
+        applicationId "io.github.bqsj404.musicfree"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
