@@ -165,6 +165,12 @@ export default function MusicList(props: IMusicListProps) {
                             }
                             focusIndex={index}
                             onItemPress={() => {
+                                // D18：统一记录队列来源。
+                                // 放在这里而不是各页面 —— 所有列表都复用本组件，
+                                // 且 `musicSheet` 本来就是它的入参，注入点唯一。
+                                if (musicSheet) {
+                                    TrackPlayer.setQueueSource(musicSheet);
+                                }
                                 if (onItemPress) {
                                     onItemPress(musicItem, musicList);
                                 } else {

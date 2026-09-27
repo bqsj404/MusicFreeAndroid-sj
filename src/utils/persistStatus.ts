@@ -20,6 +20,8 @@ interface IPersistStatus {
     "music.repeatMode": string;
     /** 列表 */
     "music.playList": IMusic.IMusicItem[];
+    /** D18：播放队列的来源歌单（面板展示与「还原来源」用） */
+    "music.queueSource"?: { id: string; platform: string; title?: string };
     /** 速度 */
     "music.rate": number;
     /** 音质 */
@@ -92,3 +94,4 @@ const PersistStatus = {
 };
 
 export default PersistStatus;
+

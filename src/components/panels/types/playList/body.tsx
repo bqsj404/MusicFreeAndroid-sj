@@ -5,6 +5,7 @@ import Tag from "@/components/base/tag";
 import ThemeText from "@/components/base/themeText";
 import { fontSizeConst } from "@/constants/uiConst";
 import { isSameMediaItem } from "@/utils/mediaUtils";
+import { getSourceName, resolveSourceKindByPlatform } from "@/core/mediaSource";
 import IconButton from "@/components/base/iconButton";
 import Loading from "@/components/base/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +25,24 @@ interface IPlayListProps {
 function _PlayListItem(props: IPlayListProps) {
     const colors = useColors();
     const { item, isCurrentMusic } = props;
+
+    /**
+     * D18：队列行显示**实际音源位置**。
+     *
+     * `sourceKind` / `sourceName` 由取源方（D1）直接挂在条目对象上 ——
+     * 播放过一次就有精确值（能区分「本地文件」与「本地库命中」这类细分）；
+     * 没播放过则按 platform 推断。
+     */
+    const extra = item as IMusic.IMusicItem & {
+        sourceKind?: IPlugin.MediaSourceKind;
+        sourceName?: string;
+    };
+    const sourceKind =
+        extra.sourceKind ?? resolveSourceKindByPlatform(item.platform);
+    const sourceName =
+        extra.sourceName?.trim() ||
+        getSourceName(sourceKind, item.platform) ||
+        item.platform;
 
     return (
         <Pressable
@@ -58,7 +77,7 @@ function _PlayListItem(props: IPlayListProps) {
                     </Text>
                 )}
             </ThemeText>
-            <Tag tagName={item.platform} />
+            <Tag tagName={sourceName} />
             <IconButton
                 style={{ marginLeft: rpx(14) }}
                 name="x-mark"
@@ -151,3 +170,5 @@ const style = StyleSheet.create({
         flex: 1,
     },
 });
+
+

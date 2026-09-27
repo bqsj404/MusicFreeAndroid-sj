@@ -455,6 +455,7 @@
     "dialog.markdownDialog.clickToShowImage": "Click to show image",
     "dialog.markdownDialog.loadFailed": "Image load failed",
     "panel.playList.title": "Play List",
+    "panel.playList.from": "From {title}",
     "panel.playList.count": " ({count} songs)",
     "panel.searchLrc.inputPlaceholder": "Enter song name",
     "panel.searchLrc.toast.settingSuccess": "Settings saved successfully~",

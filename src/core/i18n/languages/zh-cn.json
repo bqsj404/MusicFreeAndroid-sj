@@ -455,6 +455,7 @@
     "dialog.markdownDialog.clickToShowImage": "点击展示图片",
     "dialog.markdownDialog.loadFailed": "图片加载失败",
     "panel.playList.title": "播放列表",
+    "panel.playList.from": "来自 {title}",
     "panel.playList.count": " ({count}首)",
     "panel.searchLrc.inputPlaceholder": "输入歌曲名称",
     "panel.searchLrc.toast.settingSuccess": "设置成功~",

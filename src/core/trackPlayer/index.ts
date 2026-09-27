@@ -51,6 +51,15 @@ const currentMusicAtom = atom<IMusic.IMusicItem | null>(null);
 const repeatModeAtom = atom<MusicRepeatMode>(MusicRepeatMode.QUEUE);
 const qualityAtom = atom<IMusic.IQualityKey>("standard");
 const playListAtom = atom<IMusic.IMusicItem[]>([]);
+/** D18：队列来源（供队列面板响应式展示） */
+const queueSourceAtom = atom<{ id: string; platform: string; title?: string } | null>(null);
+// 首次订阅时从持久化补一次初值（重启后队列还在，来源也应还在）
+queueSourceAtom.onMount = setSelf => {
+    const saved = PersistStatus.get("music.queueSource") ?? null;
+    if (saved) {
+        setSelf(saved);
+    }
+};
 
 
 class TrackPlayer extends EventEmitter<{
@@ -876,6 +885,37 @@ class TrackPlayer extends EventEmitter<{
     }
 
 
+    /**
+     * D18：记录播放队列的**来源歌单**。
+     *
+     * 队列本身已经持久化（见 `setPlayList` 里的 `music.playList`），
+     * 但"这批歌是从哪来的"没有留下痕迹 —— 重启后队列还在，
+     * 用户却不知道它是哪个歌单/专辑。这里把它记下来，
+     * 队列面板据此展示并可「还原」（跳回来源）。
+     */
+    setQueueSource(sheet?: IMusic.IMusicSheetItem | null) {
+        if (!sheet?.id) {
+            PersistStatus.set("music.queueSource", undefined);
+            getDefaultStore().set(queueSourceAtom, null);
+            return;
+        }
+        const source = {
+            id: sheet.id,
+            platform: sheet.platform,
+            title: sheet.title,
+        };
+        PersistStatus.set("music.queueSource", source);
+        // 同时写 atom：队列面板是常驻挂载的，只写持久化的话，
+        // 已挂载的面板读不到新值（PersistStatus.useValue 基于 useState，
+        // 没有全局订阅），表现为「首次打开面板看不到来源、关掉重开才有」。
+        getDefaultStore().set(queueSourceAtom, source);
+    }
+
+    /** D18：读取队列来源（无记录时为 null） */
+    getQueueSource() {
+        return PersistStatus.get("music.queueSource") ?? null;
+    }
+
     /**************** 辅助函数 -- 工具方法 ****************/
     private shrinkPlayListToSize = (
         queue: IMusic.IMusicItem[],
@@ -1044,6 +1084,24 @@ export const usePlayList = () => useAtomValue(playListAtom);
 export const useCurrentMusic = () => useAtomValue(currentMusicAtom);
 export const useRepeatMode = () => useAtomValue(repeatModeAtom);
 export const useMusicQuality = () => useAtomValue(qualityAtom);
+/**
+ * D18：队列来源（响应式）。
+ *
+ * 首次从持久化读入 atom 的初值，之后随 `setQueueSource` 即时更新 ——
+ * 避免「面板已挂载 → 读不到新写入的来源」。
+ * 惰性初始化只在首次订阅时执行一次（进程生命周期内 atom 常驻）。
+ */
+export function useQueueSource() {
+    return useAtomValue(queueSourceAtom);
+}
+/** 供非组件场景（如面板打开前）主动同步一次持久化值到 atom */
+export function syncQueueSourceAtom() {
+    getDefaultStore().set(
+        queueSourceAtom,
+        PersistStatus.get("music.queueSource") ?? null,
+    );
+}
+
 export function useMusicState() {
     const playbackState = usePlaybackState();
 
@@ -1063,5 +1121,8 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
+
+
 
 
