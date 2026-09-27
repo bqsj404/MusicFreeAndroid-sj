@@ -21,6 +21,7 @@ import LocalMusicSheet from "@/core/localMusicSheet";
 import Backup from "@/core/backup";
 import { getLocalPath } from "@/utils/mediaUtils";
 import { cloudPluginPlatform } from "@/constants/commonConst";
+import { buildMediaNameKey } from "@/core/mediaNameKey";
 import RNFS from "react-native-fs";
 import { createCloudDiskClient, isCloudDiskConfigured } from "./client";
 import { basename, extname, listCloudFiles, parseCloudFileName } from "./index";
@@ -63,15 +64,6 @@ function getPendingAt(): number {
     return Config.getConfig("backup.syncPendingAt") ?? 0;
 }
 
-/** 作品键：归一化「歌名|歌手」 */
-function buildWorkKey(title?: string, artist?: string): string | null {
-    const t = (title ?? "").toLowerCase().replace(/\s+/g, "");
-    const a = (artist ?? "").toLowerCase().replace(/\s+/g, "");
-    if (!t) {
-        return null;
-    }
-    return a ? `${t}|${a}` : t;
-}
 
 /** 去掉 file:// 前缀 */
 function toPlainPath(path: string): string {
@@ -147,7 +139,7 @@ function recordUpload(task: IUploadTask, size = 0): void {
         source: "auto",
         size,
         uploadedAt: Date.now(),
-        workKey: buildWorkKey(title, artist),
+        workKey: buildMediaNameKey(title, artist) || null,
     });
 }
 
@@ -320,7 +312,7 @@ export async function runSync(reason = "manual"): Promise<ISyncResult> {
         );
         const managedWorkKeys = new Set<string>();
         tasks.forEach(task => {
-            const key = buildWorkKey(task.title, task.artist);
+            const key = buildMediaNameKey(task.title, task.artist) || null;
             if (key) {
                 managedWorkKeys.add(key);
             }
@@ -401,3 +393,4 @@ export function teardownCloudAutoSync(): void {
 }
 
 export { createCloudDiskClient };
+

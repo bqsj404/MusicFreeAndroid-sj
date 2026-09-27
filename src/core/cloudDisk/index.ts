@@ -87,32 +87,25 @@ export function parseCloudFileName(
     };
 }
 
-/** 归一化歌名（去空格、统一大小写、去常见修饰） */
-export function normalizeTitleKey(title?: string | null): string {
-    return (title ?? "")
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[（(].*?[）)]/g, "")
-        .trim();
-}
+/**
+ * 作品键与归一化统一走 `@/core/mediaNameKey`（逐字移植桌面版口径）。
+ *
+ * 这里以前是自研的简化版，有两处偏差会导致跨模块对不上：
+ *  1. `replace(/[（(].*?[）)]/g, "")` 会把括号**连同内容**删掉，
+ *     于是 `海底 (Live)` 与 `海底` 被误判为同一作品；
+ *  2. 歌手缺失时返回裸歌名（`晴天`）而非 `晴天|`，与其它模块产生的键不一致。
+ */
+import {
+    buildMediaNameKey,
+    normalizeArtistKey,
+    normalizeTitleKey,
+} from "@/core/mediaNameKey";
 
-/** 归一化歌手（去空格、统一大小写） */
-export function normalizeArtistKey(artist?: string | null): string {
-    return (artist ?? "").toLowerCase().replace(/\s+/g, "").trim();
-}
-
-/** 作品键：`歌名|歌手`（歌手缺失时只有歌名） */
-export function buildMediaNameKey(
-    title?: string | null,
-    artist?: string | null,
-): string {
-    const t = normalizeTitleKey(title);
-    const a = normalizeArtistKey(artist);
-    if (!t) {
-        return "";
-    }
-    return a ? `${t}|${a}` : t;
-}
+export {
+    buildMediaNameKey,
+    normalizeArtistKey,
+    normalizeTitleKey,
+} from "@/core/mediaNameKey";
 
 /** 歌词文件名净化 */
 export function safeLyricFileName(name: string): string {

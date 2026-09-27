@@ -9,6 +9,7 @@
 import LocalMusicSheet from "@/core/localMusicSheet";
 import { getLocalPath } from "@/utils/mediaUtils";
 import { cloudPluginPlatform } from "@/constants/commonConst";
+import { buildMediaNameKey } from "@/core/mediaNameKey";
 import { listCloudFiles, basename, extname, parseCloudFileName } from "./index";
 import { ensureMusicDir, uploadLocalFile, type IUploadTask } from "./upload";
 import { upsertUpload } from "./uploadRecords";
@@ -29,15 +30,6 @@ function toPlainPath(path: string): string {
     return path.startsWith("file://") ? decodeURIComponent(path.slice(7)) : path;
 }
 
-/** 归一化作品键 */
-function buildWorkKey(title?: string, artist?: string): string | null {
-    const t = (title ?? "").toLowerCase().replace(/\s+/g, "");
-    const a = (artist ?? "").toLowerCase().replace(/\s+/g, "");
-    if (!t) {
-        return null;
-    }
-    return a ? `${t}|${a}` : t;
-}
 
 /** 收集本地音乐库里的可上传任务（按本地路径去重） */
 export function collectLocalTasks(): IUploadTask[] {
@@ -83,7 +75,7 @@ function recordUpload(task: IUploadTask, size: number): void {
         source: "manual",
         size,
         uploadedAt: Date.now(),
-        workKey: buildWorkKey(title, artist),
+        workKey: buildMediaNameKey(title, artist) || null,
     });
 }
 
@@ -150,3 +142,4 @@ export async function uploadTasksWithProgress(
     );
     return result;
 }
+

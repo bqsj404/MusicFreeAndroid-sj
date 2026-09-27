@@ -4,35 +4,31 @@
  * 场景：用户在插件（Q音/酷我…）里点播一首歌，而本地音乐库里恰好有同一个作品。
  * 此时应当直接播本地文件，而不是再去请求在线音源。
  *
- * 判定口径与云盘同名匹配保持一致：**归一化「歌名 + 歌手」作品键**。
- *  - 歌名归一化：去空格、统一小写、去掉括号补充说明
- *  - 歌手归一化：去空格、统一小写
- *  - 歌手缺失或为「未知歌手」时，只按歌名匹配，且**要求唯一**才采用
+ * 判定口径统一走 [`@/core/mediaNameKey`]（逐字移植桌面版），即：
+ *  - 歌名：小写 + 去掉空白与标点（**只删括号字符，保留括号内内容**）
+ *  - 歌手：按分隔符拆成多人、各自归一化后**排序**合并
+ *  - 歌手缺失或为「未知歌手」时，退化为「歌名唯一才采用」
  *
- * 注意：只做「精确作品键」匹配，命中即用；不命中原样走插件，零副作用。
+ * 注意：只做精确作品键匹配，命中即用；不命中原样走插件，零副作用。
+ *
+ * 历史修正：本文件原先自带一套归一化，其中
+ * `replace(/[（(].*?[）)]/g, "")` 会把括号**连同内容**删掉，
+ * 导致 `海底 (Live)` 与 `海底` 归一成同一个键 —— 本地放 Live 版、
+ * 用户点的是原版时会被误判命中。现统一到桌面版口径。
  */
 import LocalMusicSheet from "@/core/localMusicSheet";
 import { getLocalPath } from "@/utils/mediaUtils";
+import {
+    buildMediaNameKey,
+    isUnknownArtist,
+    normalizeTitleKey,
+} from "@/core/mediaNameKey";
 
-/** 归一化歌名 */
-export function normalizeTitleKey(title?: string | null): string {
-    return (title ?? "")
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[（(].*?[）)]/g, "")
-        .trim();
-}
-
-/** 归一化歌手 */
-export function normalizeArtistKey(artist?: string | null): string {
-    return (artist ?? "").toLowerCase().replace(/\s+/g, "").trim();
-}
-
-/** 是否属于「歌手未知」 */
-function isUnknownArtist(artist?: string | null): boolean {
-    const key = normalizeArtistKey(artist);
-    return !key || key === "未知歌手" || key === "unknown";
-}
+export {
+    buildMediaNameKey,
+    normalizeArtistKey,
+    normalizeTitleKey,
+} from "@/core/mediaNameKey";
 
 /**
  * 在本地音乐清单里按作品键找文件路径。
@@ -60,8 +56,9 @@ export function findLocalMusicByWorkKey(
         return null;
     }
 
-    const artistKey = normalizeArtistKey(artist);
-    const matchByTitle: string[] = [];
+    // 目标作品键（歌手缺失时形如 `晴天|`）
+    const wantedKey = buildMediaNameKey(title, artist);
+    const fallbackByTitle: string[] = [];
 
     for (const item of list) {
         if (normalizeTitleKey(item.title) !== titleKey) {
@@ -71,16 +68,15 @@ export function findLocalMusicByWorkKey(
         if (!path) {
             continue;
         }
-        if (isUnknownArtist(artist)) {
-            // 歌手未知：只按歌名收集候选，最后要求唯一
-            matchByTitle.push(path);
-            continue;
-        }
-        if (normalizeArtistKey(item.artist) === artistKey) {
+        // 1) 作品键精确命中
+        if (buildMediaNameKey(item.title, item.artist) === wantedKey) {
             return path;
+        }
+        // 2) 任一侧歌手未知时，收集「同歌名」候选，最后要求唯一
+        if (isUnknownArtist(artist) || isUnknownArtist(item.artist)) {
+            fallbackByTitle.push(path);
         }
     }
 
-    // 歌手未知（或本地条目歌手缺失）时，歌名唯一才采用
-    return matchByTitle.length === 1 ? matchByTitle[0] : null;
+    return fallbackByTitle.length === 1 ? fallbackByTitle[0] : null;
 }
