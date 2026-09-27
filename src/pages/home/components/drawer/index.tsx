@@ -44,8 +44,10 @@ function HomeDrawer(props: any) {
 
     // 侧栏项参与硬件键盘 / 遥控器焦点导航
     const drawerStatus = useDrawerStatus();
+    /** 只有侧栏打开时才注册焦点项，否则关闭的抽屉会抢走主页的焦点 */
+    const drawerFocusEnabled = drawerStatus === "open";
     useEffect(() => {
-        if (drawerStatus !== "open") {
+        if (!drawerFocusEnabled) {
             return;
         }
         const unregister = registerFocusGroup(DRAWER_FOCUS_GROUP, "sequence");
@@ -58,12 +60,12 @@ function HomeDrawer(props: any) {
             clearTimeout(timer);
             unregister();
         };
-    }, [drawerStatus]);
+    }, [drawerFocusEnabled]);
 
     // 侧栏打开时：Esc 关闭侧栏（对齐桌面版 Esc 分层仲裁）
     useHardwareKeyPress(
         context => {
-            if (drawerStatus !== "open") {
+            if (!drawerFocusEnabled) {
                 return false;
             }
             if (context.semanticKey === "escape") {
@@ -72,7 +74,7 @@ function HomeDrawer(props: any) {
             }
             return false;
         },
-        [drawerStatus],
+        [drawerFocusEnabled],
         10,
         "HomeDrawer.close",
     );
@@ -150,7 +152,7 @@ function HomeDrawer(props: any) {
                         <ListItem
                             withHorizontalPadding
                             key={"basic-setting-" + index}
-                            focusId={`drawer-basic-${index}`}
+                            focusId={drawerFocusEnabled ? `drawer-basic-${index}` : undefined}
                             focusGroup={DRAWER_FOCUS_GROUP}
                             focusIndex={index}
                             onPress={item.onPress}>
@@ -175,7 +177,7 @@ function HomeDrawer(props: any) {
                         <ListItem
                             withHorizontalPadding
                             key={"other-setting-" + index}
-                            focusId={`drawer-other-${index}`}
+                            focusId={drawerFocusEnabled ? `drawer-other-${index}` : undefined}
                             focusGroup={DRAWER_FOCUS_GROUP}
                             focusIndex={100 + index}
                             onPress={item.onPress}>
@@ -187,7 +189,7 @@ function HomeDrawer(props: any) {
                         </ListItem>
                     ))}
                     <ListItem withHorizontalPadding key='language'
-                        focusId="drawer-language"
+                        focusId={drawerFocusEnabled ? "drawer-language" : undefined}
                         focusGroup={DRAWER_FOCUS_GROUP}
                         focusIndex={200}
                         onPress={() => {
@@ -222,7 +224,7 @@ function HomeDrawer(props: any) {
                     <ListItem
                         withHorizontalPadding
                         key={"update"}
-                        focusId="drawer-update"
+                        focusId={drawerFocusEnabled ? "drawer-update" : undefined}
                         focusGroup={DRAWER_FOCUS_GROUP}
                         focusIndex={300}
                         onPress={() => {
@@ -242,7 +244,7 @@ function HomeDrawer(props: any) {
                     <ListItem
                         withHorizontalPadding
                         key={"about"}
-                        focusId="drawer-about"
+                        focusId={drawerFocusEnabled ? "drawer-about" : undefined}
                         focusGroup={DRAWER_FOCUS_GROUP}
                         focusIndex={400}
                         onPress={() => {
