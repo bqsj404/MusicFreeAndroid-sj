@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import rpx from "@/utils/rpx";
 import Mode from "./mode";
 import Background from "./background";
+import ThemePackSection from "./themePack";
 import { ScrollView } from "react-native-gesture-handler";
 
 export default function ThemeSetting() {
@@ -10,6 +11,7 @@ export default function ThemeSetting() {
         <ScrollView style={style.wrapper}>
             <Mode />
             <Background />
+            <ThemePackSection />
         </ScrollView>
     );
 }
@@ -20,3 +22,4 @@ const style = StyleSheet.create({
         marginVertical: rpx(24),
     },
 });
+

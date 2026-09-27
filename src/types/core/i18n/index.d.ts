@@ -47,6 +47,24 @@ export interface ILanguageData {
     "sidebar.basicSettings": string; // 基本设置
     "sidebar.pluginManagement": string; // 插件管理
     "sidebar.themeSettings": string; // 主题设置
+    "themePack.section": string;
+    "themePack.export": string;
+    "themePack.exportDesc": string;
+    "themePack.import": string;
+    "themePack.importDesc": string;
+    "themePack.exported": string;
+    "themePack.imported": string;
+    "themePack.importFail": string;
+    "themePack.defaultName": string;
+    "themePack.err.empty": string;
+    "themePack.err.invalidJson": string;
+    "themePack.err.missingName": string;
+    "themePack.err.missingColors": string;
+    "themePack.err.noUsableColors": string;
+    "themePack.err.desktopThemePack": string;
+    "themePack.err.versionTooNew": string;
+    "themePack.err.invalidColor": string;
+    "themePack.err.unknown": string;
     "cloudMusic.title": string; // 云盘音乐
     "cloudMusic.notConfigured": string; // 未配置提示
     "cloudMusic.loadFailed": string; // 云盘读取失败
