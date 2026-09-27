@@ -181,6 +181,10 @@ export default function CloudMusic() {
                         onPress: onClearCache,
                     },
                     {
+                        icon: "trash-outline",
+                        onPress: () => navigate(ROUTE_PATH.CLOUD_TRASH),
+                    },
+                    {
                         icon: "arrow-path",
                         onPress: () => load(true),
                     },
@@ -240,6 +244,10 @@ function formatBytes(bytes: number): string {
     }
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+
+
+
 
 
 

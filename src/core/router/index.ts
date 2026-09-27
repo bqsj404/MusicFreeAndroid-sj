@@ -48,6 +48,7 @@ export const ROUTE_PATH = {
     PERMISSIONS: "permissions",
     /** 云盘音乐（WebDAV） */
     CLOUD_MUSIC: "cloud-music",
+    CLOUD_TRASH: "cloud-trash",
 } as const;
 
 type ValueOf<T> = T[keyof T];
@@ -129,3 +130,4 @@ export function useNavigate() {
 
     return navigate;
 }
+
