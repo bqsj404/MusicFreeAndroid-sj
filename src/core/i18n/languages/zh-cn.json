@@ -233,6 +233,7 @@
     "toast.importing": "正在导入中...",
     "toast.failToImportSheet": "导入歌单失败",
     "toast.settingSuccess": "设置成功~",
+    "toast.lyricAlignDone": "已将选中歌词对齐到当前进度",
     "toast.installPluginSuccess": "插件安装成功",
     "toast.updatePluginSuccess": "插件更新成功",
     "toast.installPluginFail": "插件安装失败: {reason}",

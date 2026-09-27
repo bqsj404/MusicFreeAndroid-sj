@@ -17,6 +17,8 @@ import LyricOperations from "./lyricOperations";
 import { IParsedLrcItem } from "@/utils/lrcParser";
 import { IconButtonWithGesture } from "@/components/base/iconButton.tsx";
 import { getMediaExtraProperty } from "@/utils/mediaExtra";
+import Toast from "@/utils/toast";
+import { computeAlignOffset } from "@/utils/lyricOffset";
 import lyricManager, { useCurrentLyricItem, useLyricState } from "@/core/lyricManager";
 import { useI18N } from "@/core/i18n";
 
@@ -208,6 +210,48 @@ export default function Lyric(props: IProps) {
         }
     };
 
+    /**
+     * 拖动对时（D9）：把当前拖动到的这一行**对齐到此刻的播放进度**。
+     *
+     * 与 `onLyricSeekPress`（跳转到该行时间）方向相反 —— 这里不改播放位置，
+     * 而是改歌词偏移，让这一行正好在"现在"出现。
+     *
+     * 推导（见 utils/lrcParser.ts）：
+     *   meta.offset   = 歌词内嵌 offset + extra.offset
+     *   extra.offset  = -storedLyricOffset
+     *   取词位置       = position - meta.offset
+     *   ⇒ 该行实际播放时刻 = lyricTime + meta.offset
+     * 令其等于当前 position，并消去内嵌 offset（embedded = meta.offset + stored）：
+     *   newStored = meta.offset + stored - position + lyricTime
+     */
+    const onLyricAlignPress = async () => {
+        if (draggingIndex === undefined || !currentMusicItem) {
+            return;
+        }
+        const lyricTime = lyrics[draggingIndex]?.time;
+        if (lyricTime === undefined || isNaN(lyricTime)) {
+            return;
+        }
+        const position = (await TrackPlayer.getProgress())?.position ?? 0;
+        const metaOffset = +(meta?.offset ?? 0);
+        const storedOffset = +(
+            getMediaExtraProperty(currentMusicItem, "lyricOffset") || 0
+        );
+        // 公式与单测见 utils/lyricOffset.ts
+        const newOffset = computeAlignOffset({
+            lyricTime,
+            position,
+            metaOffset,
+            storedOffset,
+        });
+        if (!Number.isFinite(newOffset)) {
+            return;
+        }
+        lyricManager.updateLyricOffset(currentMusicItem, newOffset);
+        setDraggingIndexImmi(undefined);
+        Toast.success(t("toast.lyricAlignDone"));
+    };
+
     const tapGesture = Gesture.Tap()
         .onStart(() => {
             onTurnPageClick?.();
@@ -360,6 +404,12 @@ export default function Lyric(props: IProps) {
                                 name="play"
                                 onPress={onLyricSeekPress}
                             />
+                            <IconButtonWithGesture
+                                style={styles.playIcon}
+                                sizeType='normal'
+                                name="arrow-path"
+                                onPress={onLyricAlignPress}
+                            />
                         </View>
                     )}
                 </View>
@@ -440,3 +490,6 @@ const styles = StyleSheet.create({
         textDecorationLine: "underline",
     },
 });
+
+
+

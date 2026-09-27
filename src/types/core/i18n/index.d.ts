@@ -282,6 +282,7 @@ export interface ILanguageData {
     "toast.importing": string; // 正在导入
     "toast.failToImportSheet": string; // 歌单导入失败
     "toast.settingSuccess": string; // 设置成功
+    "toast.lyricAlignDone": string;
     "toast.installPluginSuccess": string; // 插件安装成功
     "toast.updatePluginSuccess": string; // 插件更新成功
     "toast.installPluginFail": string; // 插件安装失败

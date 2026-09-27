@@ -233,6 +233,7 @@
     "toast.importing": "Importing...",
     "toast.failToImportSheet": "Failed to import playlist",
     "toast.settingSuccess": "Settings saved successfully~",
+    "toast.lyricAlignDone": "Selected lyric aligned to current position",
     "toast.installPluginSuccess": "Plugin installed successfully",
     "toast.updatePluginSuccess": "Plugin updated successfully",
     "toast.installPluginFail": "Plugin installation failed: {reason}",

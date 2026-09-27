@@ -44,6 +44,18 @@ class LyricManager implements IInjectable {
 
     private lyricParser: LyricParser | null = null;
 
+    /**
+     * 取词世代号（D9）。
+     *
+     * 每次刷新歌词自增；异步过程中若世代号已变，说明期间又发起了新的取词
+     * （例如用户快速切歌），此时**必须丢弃本次结果** —— 否则旧请求的歌词
+     * 会覆盖新歌的歌词，表现为"歌词串台"。
+     *
+     * 注意：原有的 `isCurrentMusic` 检查只防"切到了别的歌"，
+     * 防不住"同一首歌的多次并发请求乱序返回"。
+     */
+    private lyricGeneration = 0;
+
 
     get currentLyricItem() {
         return getDefaultStore().get(currentLyricItemAtom);
@@ -255,6 +267,11 @@ class LyricManager implements IInjectable {
             return;
         }
 
+        // D9：本次取词的世代号。异步返回后若世代号已变，
+        // 说明期间又发起了新的取词，本次结果必须丢弃（防止歌词串台）。
+        const generation = ++this.lyricGeneration;
+        const isStale = () => generation !== this.lyricGeneration;
+
         try {
             let lrcSource: ILyric.ILyricSource | null;
 
@@ -265,6 +282,9 @@ class LyricManager implements IInjectable {
                 this.setLyricAsLoadingState();
 
                 lrcSource = (await this.pluginManager.getByMedia(currentMusicItem)?.methods?.getLyric(currentMusicItem)) ?? null;
+                if (isStale()) {
+                    return;
+                }
             }
 
             // 切换到其他歌曲了, 直接返回
@@ -278,6 +298,9 @@ class LyricManager implements IInjectable {
                 this.setLyricAsLoadingState();
 
                 lrcSource = await this.searchSimilarLyric(currentMusicItem);
+                if (isStale()) {
+                    return;
+                }
             }
 
             // 切换到其他歌曲了, 直接返回

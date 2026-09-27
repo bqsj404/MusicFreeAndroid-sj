@@ -233,6 +233,7 @@
     "toast.importing": "正在導入中...",
     "toast.failToImportSheet": "導入歌單失敗",
     "toast.settingSuccess": "設定成功~",
+    "toast.lyricAlignDone": "已將選中歌詞對齊到當前進度",
     "toast.installPluginSuccess": "外掛安裝成功",
     "toast.updatePluginSuccess": "外掛更新成功",
     "toast.installPluginFail": "外掛安裝失敗: {reason}",
