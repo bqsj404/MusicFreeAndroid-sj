@@ -35,6 +35,7 @@ import ReactNativeTrackPlayer, {
 import LocalMusicSheet from "../localMusicSheet";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import { getSourceName } from "@/core/mediaSource";
+import toggleChain, { buildToggleGroupKey } from "@/core/playErrorChain";
 
 import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import type { IAppConfig } from "@/types/core/config";
@@ -80,6 +81,8 @@ class TrackPlayer extends EventEmitter<{
     // 音乐播放器服务是否启动
     private serviceInited = false;
     // 播放队列索引map
+    /** D2：换源链内部调用 play() 时置位，避免 play() 把 epoch 顶掉（会自己作废自己） */
+    private isToggling = false;
     private playListIndexMap = createMediaIndexMap([] as IMusic.IMusicItem[]);
 
 
@@ -709,6 +712,8 @@ class TrackPlayer extends EventEmitter<{
     }
 
     async skipToPrevious(): Promise<void> {
+        // D2：切歌 = 用户主动接管，作废在途换源链
+        toggleChain.bumpEpoch();
         if (this.isPlayListEmpty()) {
             this.setCurrentMusic(null);
             return;
@@ -991,12 +996,111 @@ class TrackPlayer extends EventEmitter<{
     }
 
 
-    private async handlePlayFail() {
-        // 如果自动跳转下一曲, 500s后自动跳转
-        if (!this.configService.getConfig("basic.autoStopWhenError")) {
-            await delay(500);
-            await this.skipToNext();
+    /** D2：读播放失败策略（新的四态优先，旧的布尔配置作兼容兜底） */
+    private getPlayErrorMode():
+        | "toggle"
+        | "toggle-replace"
+        | "skip"
+        | "pause" {
+        const mode = this.configService.getConfig("basic.playError");
+        if (mode) {
+            return mode;
         }
+        // 兼容：旧布尔项 —— true 表示出错就停（≈pause），false 跳下一首（≈skip）
+        return this.configService.getConfig("basic.autoStopWhenError")
+            ? "pause"
+            : "skip";
+    }
+
+    private async handlePlayFail() {
+        const mode = this.getPlayErrorMode();
+
+        if (mode === "pause") {
+            await this.pause();
+            return;
+        }
+
+        if (mode === "toggle" || mode === "toggle-replace") {
+            const ok = await this.runAutoToggleChain(mode);
+            if (ok) {
+                return;
+            }
+            // 无可换音源 → 沿用 skip 的兜底；
+            // 但用户点过「停止换源」时不再自动跳歌，只暂停
+            if (toggleChain.isStopped()) {
+                await this.pause();
+                return;
+            }
+        }
+
+        await delay(500);
+        await this.skipToNext();
+    }
+
+    /**
+     * 自动换源链（D2）。
+     *
+     * 对齐桌面版 `runAutoToggleChain` 的关键约束：
+     * **冷却**（避免错误事件密集开出多条链）、**链内最多 3 次**、
+     * 按**歌曲组键**去重（换源后 id/platform 会变）、
+     * **epoch 失效即中止**（用户主动接管后绝不把歌掰回去）。
+     */
+    private async runAutoToggleChain(
+        mode: "toggle" | "toggle-replace",
+    ): Promise<boolean> {
+        const musicItem = this.currentMusic;
+        if (!musicItem || toggleChain.isStopped()) {
+            return false;
+        }
+        if (!toggleChain.tryStartChain()) {
+            return false;
+        }
+
+        const epoch = toggleChain.getEpoch();
+        toggleChain.markTriedGroup(musicItem);
+        const isAborted = () =>
+            epoch !== toggleChain.getEpoch() ||
+            !this.isCurrentMusic(musicItem) ||
+            toggleChain.isStopped();
+
+        while (toggleChain.canAttempt()) {
+            if (isAborted()) {
+                return false;
+            }
+
+            const similar = await this.getSimilarMusic(
+                musicItem,
+                "music",
+                isAborted,
+                {
+                    plugins: toggleChain.triedPluginsSnapshot(),
+                    groupKeys: toggleChain.triedGroupKeysSnapshot(),
+                },
+            );
+            if (!similar) {
+                break;
+            }
+
+            toggleChain.beginAttempt();
+            toggleChain.markTriedGroup(similar as any);
+            toggleChain.markTriedPlugin(similar.platform);
+
+            try {
+                await this.play(similar as IMusic.IMusicItem, true);
+            } catch (e) {
+                // 换源本身失败，继续试下一个
+                continue;
+            }
+
+            if (epoch !== toggleChain.getEpoch()) {
+                return false;
+            }
+            if (this.isCurrentMusic(similar as IMusic.IMusicItem)) {
+                toggleChain.markToggleSuccess();
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1010,6 +1114,17 @@ class TrackPlayer extends EventEmitter<{
         musicItem: IMusic.IMusicItem,
         type: T = "music" as T,
         abortFunction?: () => boolean,
+        /**
+         * D2：自动换源链的排除项。
+         *
+         * 换源是多轮进行的，每轮都要跳过**已经试过**的插件与歌曲 ——
+         * 否则同一个死源会被反复重试。用「歌曲组键」而不是条目 id 去重，
+         * 因为换源之后 id/platform 都会变。
+         */
+        exclude?: {
+            plugins?: Set<string>;
+            groupKeys?: Set<string>;
+        },
     ): Promise<ICommon.SupportMediaItemBase[T] | null> {
         const keyword = musicItem.alias || musicItem.title;
         const plugins = this.pluginManagerService.getSearchablePlugins(type);
@@ -1028,6 +1143,9 @@ class TrackPlayer extends EventEmitter<{
             if (plugin.name === musicItem.platform) {
                 continue;
             }
+            if (exclude?.plugins?.has(plugin.name)) {
+                continue;
+            }
             const results = await plugin.methods
                 .search(keyword, 1, type)
                 .catch(() => null);
@@ -1036,6 +1154,11 @@ class TrackPlayer extends EventEmitter<{
             const firstTwo = results?.data?.slice(0, 2) || [];
 
             for (let item of firstTwo) {
+                if (
+                    exclude?.groupKeys?.has(buildToggleGroupKey(item))
+                ) {
+                    continue;
+                }
                 if (item.title === keyword && item.artist === musicItem.artist) {
                     distance = 0;
                     minDistanceMusicItem = item;
@@ -1121,6 +1244,10 @@ enum PlayFailReason {
 
 const trackPlayer = new TrackPlayer();
 export default trackPlayer;
+
+
+
+
 
 
 

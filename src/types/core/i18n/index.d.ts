@@ -418,6 +418,11 @@ export interface ILanguageData {
     "basicSettings.autoPlayWhenAppStart": string; // 软件启动时自动播放歌曲
     "basicSettings.tryChangeSourceWhenPlayFail": string; // 播放失败时尝试更换音源
     "basicSettings.autoStopWhenError": string; // 播放失败时自动暂停
+    "basicSettings.playError": string;
+    "basicSettings.playError.toggle": string;
+    "basicSettings.playError.toggleReplace": string;
+    "basicSettings.playError.skip": string;
+    "basicSettings.playError.pause": string;
     "basicSettings.tempRemoteDuck": string; // 播放被暂时打断时
     "basicSettings.tempRemoteDuck.pause": string; // 暂停播放
     "basicSettings.tempRemoteDuck.lowerVolume": string; // 降低音量

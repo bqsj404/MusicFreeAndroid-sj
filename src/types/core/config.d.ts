@@ -28,6 +28,13 @@ export interface IAppConfigProperties {
     "basic.notInterrupt": boolean;
     "basic.tempRemoteDuck": "pause" | "lowerVolume";
     "basic.tempRemoteDuckVolume": 0.3 | 0.5 | 0.8;
+    /**
+     * 播放失败时的处理方式（D2 四态）。
+     *
+     * 说明：旧的 `basic.autoStopWhenError`（布尔）是它的前身 ——
+     * `false` ≈ `skip`、`true` ≈ `pause`。本项存在时优先生效。
+     */
+    "basic.playError"?: "toggle" | "toggle-replace" | "skip" | "pause";
     "basic.autoStopWhenError": boolean;
     "basic.pluginCacheControl": string;
     "basic.maxCacheSize": number;
@@ -108,4 +115,5 @@ export interface IAppConfig<T extends IAppConfigProperties = IAppConfigPropertie
 
     getConfig<K extends keyof T>(key: K): T[K] | undefined;
 }
+
 

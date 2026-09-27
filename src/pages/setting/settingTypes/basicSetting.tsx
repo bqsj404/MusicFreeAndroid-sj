@@ -115,6 +115,8 @@ export default function BasicSetting() {
     const tempRemoteDuck = useAppConfig("basic.tempRemoteDuck");
     const tempRemoteDuckVolume = useAppConfig("basic.tempRemoteDuckVolume");
     const autoStopWhenError = useAppConfig("basic.autoStopWhenError");
+    // D2：播放失败四态（旧布尔项仅作迁移兜底）
+    const playError = useAppConfig("basic.playError");
     const maxCacheSize = useAppConfig("basic.maxCacheSize");
     const defaultPlayQuality = useAppConfig("basic.defaultPlayQuality");
     const playQualityOrder = useAppConfig("basic.playQualityOrder");
@@ -282,10 +284,19 @@ export default function BasicSetting() {
                     "basic.tryChangeSourceWhenPlayFail",
                     tryChangeSourceWhenPlayFail ?? false,
                 ),
-                createSwitch(
-                    t("basicSettings.autoStopWhenError"),
-                    "basic.autoStopWhenError",
-                    autoStopWhenError ?? false,
+                createRadio(
+                    t("basicSettings.playError"),
+                    "basic.playError",
+                    ["toggle", "toggle-replace", "skip", "pause"],
+                    playError ?? (autoStopWhenError ? "pause" : "skip"),
+                    {
+                        toggle: t("basicSettings.playError.toggle"),
+                        "toggle-replace": t(
+                            "basicSettings.playError.toggleReplace",
+                        ),
+                        skip: t("basicSettings.playError.skip"),
+                        pause: t("basicSettings.playError.pause"),
+                    },
                 ),
                 createRadio(
                     t("basicSettings.tempRemoteDuck"),
@@ -923,3 +934,4 @@ const lyricStyles = StyleSheet.create({
         paddingHorizontal: rpx(24),
     },
 });
+

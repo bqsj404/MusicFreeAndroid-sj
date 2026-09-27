@@ -46,6 +46,7 @@ class AppConfig implements IAppConfig {
                 ["setting.basic.notInterrupt", "basic.notInterrupt"],
                 ["setting.basic.tempRemoteDuck", "basic.tempRemoteDuck"],
                 ["setting.basic.autoStopWhenError", "basic.autoStopWhenError"],
+    ["setting.basic.playError", "basic.playError"],
                 ["setting.basic.pluginCacheControl", "basic.pluginCacheControl"],
                 ["setting.basic.maxCacheSize", "basic.maxCacheSize"],
                 ["setting.basic.defaultPlayQuality", "basic.defaultPlayQuality"],
