@@ -7,6 +7,8 @@ import MusicSheet, { useSheetItem } from "@/core/musicSheet";
 import { ROUTE_PATH, useParams } from "@/core/router";
 import { default as Toast, default as toast } from "@/utils/toast";
 import { useNavigation } from "@react-navigation/native";
+import Clipboard from "@react-native-clipboard/clipboard";
+import { buildImportText, encodeSheet } from "@/core/sheetShare/codec";
 import React from "react";
 
 export default function () {
@@ -19,6 +21,36 @@ export default function () {
         <>
             <AppBar
                 menu={[
+                    {
+                        // D5：分享歌单 —— 生成 MFS2 片段并复制到剪贴板。
+                        // 暂不做长图/二维码（需图片合成与二维码识别库）；
+                        // 文本路径与它们共用同一套编解码，先落地最通用的一条。
+                        icon: "arrow-up-tray",
+                        title: t("sheetDetail.shareSheet"),
+                        onPress() {
+                            if (!musicSheet?.musicList?.length) {
+                                Toast.warn(t("sheetDetail.shareEmpty"));
+                                return;
+                            }
+                            const fragments = encodeSheet({
+                                title: musicSheet.title,
+                                platform: musicSheet.platform,
+                                id: musicSheet.id,
+                                musicList: musicSheet.musicList.map(item => ({
+                                    platform: item.platform,
+                                    id: item.id,
+                                    title: item.title,
+                                    artist: item.artist,
+                                })),
+                            });
+                            Clipboard.setString(buildImportText(fragments));
+                            Toast.success(
+                                t("sheetDetail.shareCopied", {
+                                    count: String(fragments.length),
+                                }),
+                            );
+                        },
+                    },
                     {
                         icon: "pencil-outline",
                         title: t("sheetDetail.editSheetInfo"),
@@ -114,3 +146,4 @@ export default function () {
         </>
     );
 }
+

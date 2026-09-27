@@ -193,6 +193,9 @@ export interface ILanguageData {
     // 歌单详情相关
     "sheetDetail.totalMusicCount": string; // 歌曲总数
     "sheetDetail.editSheetInfo": string; // 编辑歌单信息
+    "sheetDetail.shareSheet": string;
+    "sheetDetail.shareCopied": string;
+    "sheetDetail.shareEmpty": string;
     "sheetDetail.batchEditMusic": string; // 批量编辑音乐
     "sheetDetail.sortMusic": string; // 排序音乐
     "sheetDetail.sortMusicOption.byTitle": string; // 按标题排序
@@ -566,6 +569,9 @@ export interface ILanguageData {
     "panel.colorPicker.title": string; // 选择颜色
     "panel.createMusicSheet.inputLabel": string; // 输入框
     "panel.importMusicSheet.title": string; // 导入歌单
+    "panel.importMusicSheet.fromShareText": string;
+    "panel.importMusicSheet.fromShareTextDesc": string;
+    "panel.importMusicSheet.shareTextInvalid": string;
     "panel.importMusicSheet.placeholder": string; // 输入目标歌单
     "panel.importMusicSheet.importing": string; // 正在导入中
     "panel.importMusicSheet.prepareImport": string; // 准备导入

@@ -14,6 +14,7 @@ import PanelBase from "../base/panelBase";
 import PanelHeader from "../base/panelHeader";
 import { showPanel } from "../usePanel";
 import { useI18N } from "@/core/i18n";
+import { decodeSheetFromText } from "@/core/sheetShare/codec";
 
 export default function ImportMusicSheet() {
     const validPlugins = PluginManager.getSortedPluginsWithAbility("importMusicSheet");
@@ -27,6 +28,67 @@ export default function ImportMusicSheet() {
             renderBody={() => (
                 <>
                     <PanelHeader hideButtons title={t("panel.importMusicSheet.title")} />
+                    {/*
+                      * D5：从 MFS2 分享文本导入。
+                      * 放在插件列表之前 —— 它不依赖任何插件，
+                      * 而 MFS2 正是本应用自己产出的分享格式。
+                      */}
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => {
+                            showPanel("SimpleInput", {
+                                title: t(
+                                    "panel.importMusicSheet.fromShareText",
+                                ),
+                                placeholder: "MFS2:…",
+                                maxLength: 20000,
+                                async onOk(text, closePanel) {
+                                    const sheet = decodeSheetFromText(text);
+                                    if (!sheet?.musicList?.length) {
+                                        Toast.warn(
+                                            t(
+                                                "panel.importMusicSheet.shareTextInvalid",
+                                            ),
+                                        );
+                                        return;
+                                    }
+                                    closePanel();
+                                    const items: IMusic.IMusicItem[] =
+                                        sheet.musicList.map(item => ({
+                                            id: item.id,
+                                            platform: item.platform,
+                                            title: item.title,
+                                            artist: item.artist ?? "",
+                                            artwork: "",
+                                            album: "",
+                                            duration: 0,
+                                        }));
+                                    showDialog("SimpleDialog", {
+                                        title: t(
+                                            "panel.importMusicSheet.prepareImport",
+                                        ),
+                                        content: t(
+                                            "panel.importMusicSheet.foundSongs",
+                                            { count: items.length },
+                                        ),
+                                        onOk() {
+                                            showPanel("AddToMusicSheet", {
+                                                musicItem: items,
+                                            });
+                                        },
+                                    });
+                                },
+                            });
+                        }}>
+                        <ListItem.Content
+                            title={t(
+                                "panel.importMusicSheet.fromShareText",
+                            )}
+                            description={t(
+                                "panel.importMusicSheet.fromShareTextDesc",
+                            )}
+                        />
+                    </ListItem>
                     {validPlugins.length ? (
                         <View style={globalStyle.fwflex1}>
                             <FlatList
@@ -91,3 +153,4 @@ export default function ImportMusicSheet() {
         />
     );
 }
+
