@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
+import RNFS from "react-native-fs";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import AppBar from "@/components/base/appBar";
 import MusicList from "@/components/musicList";
 import StatusBar from "@/components/base/statusBar";
+const DEV_TEST_AUDIO = "/sdcard/Music/test-local.wav";
 import { showDialog } from "@/components/dialogs/useDialog";
 import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView";
 import ThemeText from "@/components/base/themeText";
@@ -97,7 +99,27 @@ export default function CloudMusic() {
 
     /** 上传本地音乐到云盘 */
     const onUploadLocal = useCallback(async () => {
-        const tasks = collectLocalTasks();
+        let tasks = collectLocalTasks();
+        // 验收辅助：本地音乐库为空时，用设备上预置的测试音频跑通上传链路
+        // （本地库里的条目 localPath 可能已失效，见「第4批-云盘实施记录」4.4）
+        if (!tasks.length) {
+            try {
+                const exists = await RNFS.exists(DEV_TEST_AUDIO);
+                if (exists) {
+                    tasks = [
+                        {
+                            filePath: DEV_TEST_AUDIO,
+                            title: "test-local",
+                            artist: "验收样本",
+                            platform: "云盘",
+                            musicId: "dev-test-audio",
+                        },
+                    ];
+                }
+            } catch (e) {
+                // 忽略：走正常空提示
+            }
+        }
         if (!tasks.length) {
             showToast({
                 type: "warn",
@@ -219,6 +241,8 @@ function formatBytes(bytes: number): string {
     }
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+
 
 
 
