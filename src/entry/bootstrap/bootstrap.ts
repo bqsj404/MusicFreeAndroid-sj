@@ -6,6 +6,7 @@ import { emptyFunction, localPluginHash, supportLocalMediaType } from "@/constan
 import pathConst from "@/constants/pathConst";
 import Config from "@/core/appConfig";
 import downloader, { DownloadFailReason, DownloaderEvent } from "@/core/downloader";
+import { applyProxyConfig } from "@/core/networkProxy";
 import LocalMusicSheet from "@/core/localMusicSheet";
 import lyricManager from "@/core/lyricManager";
 import musicHistory from "@/core/musicHistory";
@@ -33,6 +34,9 @@ PluginManager.injectDependencies(Config);
 musicHistory.injectDependencies(Config);
 TrackPlayer.injectDependencies(Config, musicHistory, PluginManager);
 downloader.injectDependencies(Config, PluginManager);
+    // D16：把网络代理配置应用到原生 OkHttp（未配置时等于关闭）
+    // 不 await：bootstrap 不在 async 上下文；代理应用失败也不该阻塞启动
+    applyProxyConfig().catch(() => {});
 lyricManager.injectDependencies(TrackPlayer, Config, PluginManager);
 MusicSheet.injectDependencies(Config);
 
@@ -327,3 +331,4 @@ export default async function () {
     console.log("HIDE");
     await SplashScreen.hideAsync();
 }
+

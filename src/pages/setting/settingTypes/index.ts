@@ -2,6 +2,7 @@ import deviceInfoModule from "react-native-device-info";
 import AboutSetting from "./aboutSetting";
 import BackupSetting from "./backupSetting";
 import LocalMusicSetting from "./localMusicSetting";
+import NetworkSetting from "./networkSetting";
 import BasicSetting from "./basicSetting";
 import PluginSetting from "./pluginSetting";
 import ShortcutSetting from "./shortcutSetting";
@@ -37,6 +38,11 @@ const settingTypes: Record<
         i18nKey: "setting.shortcut.title",
         component: ShortcutSetting,
     },
+    network: {
+        title: "网络",
+        i18nKey: "setting.network.title",
+        component: NetworkSetting,
+    },
     localMusic: {
         title: "本地音乐",
         i18nKey: "setting.localMusic.title",
@@ -55,4 +61,5 @@ const settingTypes: Record<
 };
 
 export default settingTypes;
+
 

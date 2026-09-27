@@ -8,6 +8,7 @@ export interface ILanguageData {
     "common.other": string; // 其他
     "common.cancel": string; // 取消
     "common.about": string; // 关于
+    "common.notSet": string;
     "common.batchEdit": string; // 批量编辑
     "common.selectAll": string; // 全选
     "common.unselectAll": string; // 全不选
@@ -282,6 +283,19 @@ export interface ILanguageData {
     "toast.importing": string; // 正在导入
     "toast.failToImportSheet": string; // 歌单导入失败
     "toast.settingSuccess": string; // 设置成功
+    "setting.network.title": string;
+    "networkSetting.section": string;
+    "networkSetting.proxyEnabled": string;
+    "networkSetting.proxyEnabledDesc": string;
+    "networkSetting.proxyEndpoint": string;
+    "networkSetting.proxyHost": string;
+    "networkSetting.proxyPort": string;
+    "networkSetting.applied": string;
+    "networkSetting.appliedOff": string;
+    "networkSetting.notSupported": string;
+    "networkSetting.tipSection": string;
+    "networkSetting.scopeTip": string;
+    "networkSetting.rebuildTip": string;
     "selection.selectedCount": string;
     "selection.selectAll": string;
     "selection.invert": string;

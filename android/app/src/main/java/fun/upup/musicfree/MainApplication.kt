@@ -17,6 +17,7 @@ import com.facebook.soloader.SoLoader
 import `fun`.upup.musicfree.keyboard.KeyboardEventPackage
 import `fun`.upup.musicfree.lyricUtil.LyricUtilPackage
 import `fun`.upup.musicfree.mp3Util.Mp3UtilPackage
+import `fun`.upup.musicfree.networkProxy.NetworkProxyPackage
 import `fun`.upup.musicfree.utils.UtilsPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -31,6 +32,7 @@ class MainApplication : Application(), ReactApplication {
               add(Mp3UtilPackage())
               add(LyricUtilPackage())
               add(KeyboardEventPackage())
+              add(NetworkProxyPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
@@ -59,3 +61,4 @@ class MainApplication : Application(), ReactApplication {
     ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
   }
 }
+

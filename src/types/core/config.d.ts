@@ -8,6 +8,13 @@ export interface IAppConfigProperties {
      * 本地音乐扫描：排除的目录（绝对路径前缀匹配）。
      * 用于跳过录音、播客、有声书等不该入库的目录。
      */
+    /**
+     * 网络代理（D16）。代理在**原生层**生效（替换 OkHttpClient 的代理），
+     * 因为 RN 的 fetch/axios 没有 JS 侧代理入口。
+     */
+    "network.proxy.enabled"?: boolean;
+    "network.proxy.host"?: string;
+    "network.proxy.port"?: number;
     "localMusic.excludedPaths"?: string[];
     /** 本地音乐扫描：最短时长（秒），0 或未设置表示不过滤 */
     "localMusic.minDurationSec"?: number;
@@ -101,3 +108,4 @@ export interface IAppConfig<T extends IAppConfigProperties = IAppConfigPropertie
 
     getConfig<K extends keyof T>(key: K): T[K] | undefined;
 }
+

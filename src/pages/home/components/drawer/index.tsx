@@ -108,6 +108,13 @@ function HomeDrawer(props: any) {
             },
         },
         {
+            icon: "link",
+            title: t("setting.network.title"),
+            onPress: () => {
+                navigateToSetting("network");
+            },
+        },
+        {
             icon: "folder-plus",
             title: t("setting.localMusic.title"),
             onPress: () => {
@@ -357,3 +364,5 @@ function _CountDownItem() {
 }
 
 const CountDownItem = memo(_CountDownItem, () => true);
+
+
