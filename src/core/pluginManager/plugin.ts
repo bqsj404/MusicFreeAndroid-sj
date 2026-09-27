@@ -13,6 +13,7 @@ import delay from "@/utils/delay";
 import { addFileScheme, getFileName } from "@/utils/fileUtils";
 import { getMediaExtraProperty, patchMediaExtra } from "@/utils/mediaExtra";
 import { getLocalPath, isSameMediaItem, resetMediaItem } from "@/utils/mediaUtils";
+import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import notImplementedFunction from "@/utils/notImplementedFunction.ts";
 import axios from "axios";
 import bigInt from "big-integer";
@@ -231,6 +232,24 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
         if (musicItem.platform === localPluginPlatform) {
             throw new Error("本地音乐不存在");
         }
+
+        // 1.5 本地优先：当前条目来自在线插件，但本地音乐库里有同一作品
+        //     （归一化「歌名 + 歌手」精确匹配）→ 直接用本地文件，省流量且音质更好。
+        //     只做精确作品键匹配，命中才用；不命中零副作用地继续走插件。
+        const localSameWork = findLocalMusicByWorkKey(
+            (musicItem as IMusic.IMusicItem).title,
+            (musicItem as IMusic.IMusicItem).artist,
+        );
+        if (localSameWork && (await exists(localSameWork))) {
+            trace("本地优先播放", localSameWork);
+            if (localPathInMediaExtra !== localSameWork) {
+                patchMediaExtra(musicItem, { localPath: localSameWork });
+            }
+            return {
+                url: addFileScheme(localSameWork),
+            };
+        }
+
         // 2. 缓存播放
         const mediaCache = MediaCache.getMediaCache(
             musicItem,
