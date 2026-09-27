@@ -162,3 +162,27 @@ export async function clearCloudFileCache(): Promise<void> {
     }
     inflight.clear();
 }
+
+/** 缓存占用（字节）与文件数 */
+export async function getCloudCacheUsage(): Promise<{
+    bytes: number;
+    files: number;
+}> {
+    try {
+        if (!(await RNFS.exists(CLOUD_CACHE_DIR))) {
+            return { bytes: 0, files: 0 };
+        }
+        const entries = await RNFS.readDir(CLOUD_CACHE_DIR);
+        let bytes = 0;
+        let files = 0;
+        entries.forEach(entry => {
+            if (entry.isFile()) {
+                files++;
+                bytes += Number(entry.size ?? 0);
+            }
+        });
+        return { bytes, files };
+    } catch (e) {
+        return { bytes: 0, files: 0 };
+    }
+}

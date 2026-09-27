@@ -49,6 +49,10 @@ export interface ILanguageData {
     "cloudMusic.title": string; // 云盘音乐
     "cloudMusic.notConfigured": string; // 未配置提示
     "cloudMusic.loadFailed": string; // 云盘读取失败
+    "cloudMusic.clearCache": string;
+    "cloudMusic.clearCacheTitle": string;
+    "cloudMusic.clearCacheContent": string;
+    "cloudMusic.clearCacheDone": string;
     // 键盘快捷键设置
     "setting.shortcut.title": string; // 键盘快捷键
     "setting.shortcut.hint": string; // 说明

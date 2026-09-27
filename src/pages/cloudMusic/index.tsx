@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import AppBar from "@/components/base/appBar";
 import MusicList from "@/components/musicList";
 import StatusBar from "@/components/base/statusBar";
+import { showDialog } from "@/components/dialogs/useDialog";
 import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView";
 import ThemeText from "@/components/base/themeText";
 import { showToast } from "@/components/base/toast";
@@ -16,6 +17,10 @@ import {
     type ICloudMusicItem,
 } from "@/core/cloudDisk";
 import { isCloudDiskConfigured } from "@/core/cloudDisk/client";
+import {
+    clearCloudFileCache,
+    getCloudCacheUsage,
+} from "@/core/cloudDisk/fileCache";
 import { RequestStateCode } from "@/constants/commonConst";
 import { keyboardLog } from "@/core/keyboard/native";
 import rpx from "@/utils/rpx";
@@ -38,6 +43,7 @@ export default function CloudMusic() {
         RequestStateCode.PENDING_FIRST_PAGE,
     );
     const [errorText, setErrorText] = useState("");
+    const [cacheText, setCacheText] = useState("0 B");
 
     const load = useCallback(
         async (force = false) => {
@@ -68,6 +74,14 @@ export default function CloudMusic() {
         [t],
     );
 
+    const refreshCache = useCallback(async () => {
+        const usage = await getCloudCacheUsage();
+        setCacheText(formatBytes(usage.bytes));
+    }, []);
+
+    useEffect(() => {
+        refreshCache();
+    }, [refreshCache]);
     // 从别的页面回来时刷新（远端可能已变化）
     useFocusEffect(
         useCallback(() => {
@@ -80,6 +94,30 @@ export default function CloudMusic() {
         <SafeAreaView edges={["top"]} style={styles.wrapper}>
             <StatusBar />
             <AppBar
+                menu={[
+                    {
+                        icon: "archive-box-x-mark",
+                        title: t("cloudMusic.clearCache", {
+                            size: cacheText,
+                        }),
+                        onPress: async () => {
+                            const usage = await getCloudCacheUsage();
+                            if (!usage.files) {
+                                showToast({
+                                    type: "warn",
+                                    message: t("cloudMusic.clearCacheDone"),
+                                });
+                                return;
+                            }
+                            await clearCloudFileCache();
+                            showToast({
+                                type: "success",
+                                message: t("cloudMusic.clearCacheDone"),
+                            });
+                            refreshCache();
+                        },
+                    },
+                ]}
                 actions={[
                     {
                         icon: "arrow-path",
@@ -127,3 +165,20 @@ const styles = StyleSheet.create({
         paddingVertical: rpx(16),
     },
 });
+/** 字节数格式化（展示缓存占用） */
+function formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) {
+        return "0 B";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit++;
+    }
+    return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+
+
