@@ -17,7 +17,6 @@ import {
 } from "./zoteroDavCompat";
 import { basename, extname, parseCloudFileName } from "./index";
 import Base64 from "@/utils/base64";
-import { keyboardLog } from "@/core/keyboard/native";
 import RNFS from "react-native-fs";
 
 /** 目录存在则不动，不存在则递归创建（缺哪级建哪级） */
@@ -116,11 +115,9 @@ export async function uploadLocalFile(
         return { failed: "未配置 WebDAV" };
     }
     const plainPath = toPlainPath(task.filePath);
-    keyboardLog("CloudUpload", `enter path=${plainPath}`);
     try {
         const stat = await RNFS.stat(plainPath);
         const size = Number(stat.size ?? 0);
-        keyboardLog("CloudUpload", `stat ok size=${size}`);
         const ext = extname(plainPath);
         const logicalName = buildUploadFileName(
             task.title || parseCloudFileName(basename(plainPath)).title,
@@ -134,7 +131,6 @@ export async function uploadLocalFile(
         }
 
         const storedPath = `${CLOUD_MUSIC_DIR}/${toStoredName(logicalName)}`;
-        keyboardLog("CloudUpload", `put -> ${storedPath} size=${size}`);
         const base64 = await RNFS.readFile(plainPath, "base64");
         // 传 base64 字符串：webdav 内部会据此算出长度并转二进制。
         // 注意不能传 Uint8Array —— 实测报
@@ -143,10 +139,8 @@ export async function uploadLocalFile(
             overwrite: true,
         });
         remoteSizes.set(logicalName, size);
-        keyboardLog("CloudUpload", `ok ${logicalName}`);
         return "uploaded";
     } catch (e: any) {
-        keyboardLog("CloudUpload", `FAIL ${e?.message ?? String(e)}`);
         return { failed: `${e?.message ?? String(e)}` };
     }
 }
@@ -158,6 +152,7 @@ export function lyricRemotePath(logicalName: string): string {
 }
 
 export { toStoredPath, basename };
+
 
 
 
