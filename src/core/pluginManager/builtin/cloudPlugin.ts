@@ -13,7 +13,7 @@
 import { cloudPluginPlatform } from "@/constants/commonConst";
 import {
     buildCloudMediaSource,
-    getCloudLyricText,
+    getCloudLyricSource,
     getCloudMusicInfo,
 } from "@/core/cloudDisk";
 
@@ -36,11 +36,12 @@ export function createCloudPluginDefine(): IPlugin.IPluginDefine {
             );
         },
         async getLyric(musicBase: ICommon.IMediaBase) {
-            const rawLrc = await getCloudLyricText(musicBase);
-            return rawLrc ? { rawLrc } : null;
+            // D10：一并返回 `<名>-tr.lrc` 翻译
+            return getCloudLyricSource(musicBase);
         },
         async getMusicInfo(musicBase: ICommon.IMediaBase) {
             return getCloudMusicInfo(musicBase);
         },
     };
 }
+

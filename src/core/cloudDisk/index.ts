@@ -391,18 +391,39 @@ export async function listCloudLyricFiles(): Promise<ICloudRemoteFile[]> {
 export async function getCloudLyricText(
     musicBase: ICommon.IMediaBase,
 ): Promise<string | null> {
+    const name = cloudLyricDisplayName(musicBase);
+    if (!name) {
+        return null;
+    }
+    return fetchCloudLyricByName(name);
+}
+
+/** 云盘歌词的逻辑名（不含扩展名）：优先条目自带的 cloudName，否则「歌名 - 歌手」 */
+function cloudLyricDisplayName(musicBase: ICommon.IMediaBase): string {
+    const item = musicBase as IMusic.IMusicItem;
+    if ((item as { cloudName?: string }).cloudName) {
+        return basenameWithoutExt(String((item as { cloudName?: string }).cloudName));
+    }
+    if (!item.title) {
+        return "";
+    }
+    return item.artist && item.artist !== "未知歌手"
+        ? `${item.title} - ${item.artist}`
+        : item.title;
+}
+
+/**
+ * 按逻辑名取云盘歌词内容。
+ *
+ * 两级匹配：精确文件名 → 归一化作品键扫目录（各插件歌手写法不同，需要兜底）。
+ */
+async function fetchCloudLyricByName(
+    displayName: string,
+): Promise<string | null> {
     const client = createCloudDiskClient();
     if (!client) {
         return null;
     }
-    const item = musicBase as IMusic.IMusicItem;
-    const displayName = (item as any).cloudName
-        ? basenameWithoutExt(String((item as any).cloudName))
-        : item.title
-          ? item.artist && item.artist !== "未知歌手"
-              ? `${item.title} - ${item.artist}`
-              : item.title
-          : "";
     const fileName = safeLyricFileName(displayName);
     if (!fileName) {
         return null;
@@ -415,7 +436,9 @@ export async function getCloudLyricText(
             const content = await client.getFileContents(storedPath, {
                 format: "text",
             });
-            return typeof content === "string" ? content : null;
+            if (typeof content === "string") {
+                return content;
+            }
         }
     } catch (e) {
         // 落到第二级
@@ -436,11 +459,37 @@ export async function getCloudLyricText(
         if (!hit) {
             return null;
         }
-        const content = await client.getFileContents(hit.path, { format: "text" });
+        const content = await client.getFileContents(hit.path, {
+            format: "text",
+        });
         return typeof content === "string" ? content : null;
     } catch (e) {
         return null;
     }
+}
+
+/**
+ * 云盘歌词源（D10 歌词取源链）。
+ *
+ * 除原文外，还按约定查找 **`<逻辑名>-tr.lrc`** 作为翻译，
+ * 与本地歌词的 `-tr.lrc` 约定保持一致。
+ */
+export async function getCloudLyricSource(
+    musicBase: ICommon.IMediaBase,
+): Promise<{ rawLrc?: string; translation?: string } | null> {
+    const name = cloudLyricDisplayName(musicBase);
+    if (!name) {
+        return null;
+    }
+    const rawLrc = await fetchCloudLyricByName(name);
+    const translation = await fetchCloudLyricByName(`${name}-tr`);
+    if (!rawLrc && !translation) {
+        return null;
+    }
+    return {
+        rawLrc: rawLrc ?? undefined,
+        translation: translation ?? undefined,
+    };
 }
 
 /** 云盘歌曲信息（封面等）——当前远端无封面约定，返回 null */

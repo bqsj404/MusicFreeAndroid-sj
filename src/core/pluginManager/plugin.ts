@@ -521,7 +521,9 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
 
         if (lrcSource) {
             rawLrc = lrcSource?.rawLrc || rawLrc;
-            translation = lrcSource?.translation || null;
+            // 与上一行保持一致：新来源没有翻译时**保留**已有的，
+            // 而不是直接清成 null（原文与译文的处理原先不对称）
+            translation = lrcSource?.translation || translation;
 
             const deprecatedLrcUrl = lrcSource?.lrc || musicItem.lrc;
 
@@ -1093,6 +1095,8 @@ const localFilePluginDefine: IPlugin.IPluginDefine = {
     async getLyric(musicBase) {
         const localPath = getLocalPath(musicBase);
         let rawLrc: string | null = null;
+        let translation: string | null = null;
+
         if (localPath) {
             // 读取内嵌歌词
             try {
@@ -1100,24 +1104,40 @@ const localFilePluginDefine: IPlugin.IPluginDefine = {
             } catch (e) {
                 console.log("读取内嵌歌词失败", e);
             }
-            if (!rawLrc) {
-                // 读取配置歌词
-                const lastDot = localPath.lastIndexOf(".");
-                const lrcPath = localPath.slice(0, lastDot) + ".lrc";
 
+            const lastDot = localPath.lastIndexOf(".");
+            const basePath =
+                lastDot > 0 ? localPath.slice(0, lastDot) : localPath;
+
+            if (!rawLrc) {
+                // 读取同名 .lrc
+                const lrcPath = basePath + ".lrc";
                 try {
                     if (await exists(lrcPath)) {
                         rawLrc = await readFile(lrcPath, "utf8");
                     }
-                } catch { }
+                } catch {}
             }
+
+            // D10：`<同名>-tr.lrc` 翻译文件。
+            // 翻译与原文各自独立读取 —— 即使歌词来自内嵌标签，
+            // 也允许在同目录放一个 `-tr.lrc` 作为翻译。
+            try {
+                const trPath = basePath + "-tr.lrc";
+                if (await exists(trPath)) {
+                    translation = await readFile(trPath, "utf8");
+                }
+            } catch {}
         }
 
-        return rawLrc
-            ? {
-                rawLrc,
-            }
-            : null;
+        if (!rawLrc && !translation) {
+            return null;
+        }
+
+        return {
+            rawLrc: rawLrc ?? undefined,
+            translation: translation ?? undefined,
+        };
     },
     async importMusicItem(urlLike) { // 绝对路径
         let meta: any = {};
