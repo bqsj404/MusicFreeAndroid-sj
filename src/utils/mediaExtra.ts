@@ -20,7 +20,14 @@ interface IMediaExtraProperties {
     /** 歌词偏移 */
     lyricOffset?: number;
     /** 关联歌词 */
-    associatedLrc?: ICommon.IMediaBase
+    associatedLrc?: ICommon.IMediaBase;
+    /**
+     * 自定义封面（D14）。
+     *
+     * 存的是**应用目录下的文件路径**（用户选图后复制进来），
+     * 而不是相册返回的临时 uri —— 后者可能被系统回收。
+     */
+    artwork?: string;
 }
 
 

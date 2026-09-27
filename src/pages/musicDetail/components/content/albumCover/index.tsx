@@ -9,6 +9,8 @@ import globalStyle from "@/constants/globalStyle";
 import { View } from "react-native";
 import Operations from "./operations";
 import { showPanel } from "@/components/panels/usePanel.ts";
+import { resolveArtwork } from "@/core/artwork";
+import ThemedDefaultCover from "@/components/base/themedDefaultCover";
 
 interface IProps {
     onTurnPageClick?: () => void;
@@ -34,11 +36,17 @@ export default function AlbumCover(props: IProps) {
         }
     }, [orientation]);
 
+    /**
+     * D14：优先用自定义封面（mediaExtra.artwork），没有才用条目自带的。
+     * 取不到时由 ThemedDefaultCover 顶上（按主题染色的默认封面）。
+     */
+    const artwork = resolveArtwork(musicItem);
+
     const longPress = Gesture.LongPress()
         .onStart(() => {
-            if (musicItem?.artwork) {
+            if (artwork) {
                 showPanel("ImageViewer", {
-                    url: musicItem.artwork,
+                    url: artwork,
                 });
             }
         })
@@ -56,14 +64,19 @@ export default function AlbumCover(props: IProps) {
         <>
             <GestureDetector gesture={combineGesture}>
                 <View style={globalStyle.fullCenter}>
-                    <FastImage
-                        style={artworkStyle}
-                        source={musicItem?.artwork}
-                        placeholderSource={ImgAsset.albumDefault}
-                    />
+                    {artwork ? (
+                        <FastImage
+                            style={artworkStyle}
+                            source={artwork}
+                            placeholderSource={ImgAsset.albumDefault}
+                        />
+                    ) : (
+                        <ThemedDefaultCover size={artworkStyle.width as number} />
+                    )}
                 </View>
             </GestureDetector>
             <Operations />
         </>
     );
 }
+

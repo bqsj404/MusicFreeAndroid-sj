@@ -581,6 +581,11 @@ export interface ILanguageData {
 
     // 面板相关 - 音乐项选项    
     "panel.musicItemOptions.author": string; // 作者
+    "panel.musicItemOptions.changeArtwork": string;
+    "panel.musicItemOptions.resetArtwork": string;
+    "panel.musicItemOptions.artworkSet": string;
+    "panel.musicItemOptions.artworkReset": string;
+    "panel.musicItemOptions.artworkFail": string;
     "panel.musicItemOptions.album": string; // 专辑
     "panel.musicItemOptions.downloaded": string; // 已下载
     "panel.musicItemOptions.readComment": string; // 查看评论

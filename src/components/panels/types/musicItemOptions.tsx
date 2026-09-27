@@ -27,6 +27,12 @@ import mediaCache from "@/core/mediaCache";
 import { IIconName } from "@/components/base/icon.tsx";
 import MusicSheet from "@/core/musicSheet";
 import downloader from "@/core/downloader";
+import {
+    clearCustomArtwork,
+    hasCustomArtwork,
+    setCustomArtwork,
+} from "@/core/artwork";
+import { launchImageLibrary } from "react-native-image-picker";
 import { getMediaExtraProperty } from "@/utils/mediaExtra";
 import lyricManager from "@/core/lyricManager";
 import { useI18N } from "@/core/i18n";
@@ -130,6 +136,40 @@ export default function MusicItemOptions(props: IMusicItemOptionsProps) {
                         downloader.download(musicItem, quality);
                     },
                 });
+            },
+        },
+        {
+            // D14：换图 / 恢复封面（对齐桌面版播放页的「更换 / 恢复封面」）
+            icon: "arrow-up-tray",
+            title: hasCustomArtwork(musicItem)
+                ? t("panel.musicItemOptions.resetArtwork")
+                : t("panel.musicItemOptions.changeArtwork"),
+            onPress: async () => {
+                try {
+                    if (hasCustomArtwork(musicItem)) {
+                        await clearCustomArtwork(musicItem);
+                        Toast.success(t("panel.musicItemOptions.artworkReset"));
+                        hidePanel();
+                        return;
+                    }
+                    const result = await launchImageLibrary({
+                        mediaType: "photo",
+                        selectionLimit: 1,
+                    });
+                    const uri = result.assets?.[0]?.uri;
+                    if (result.didCancel || !uri) {
+                        return;
+                    }
+                    await setCustomArtwork(musicItem, uri);
+                    Toast.success(t("panel.musicItemOptions.artworkSet"));
+                    hidePanel();
+                } catch (e: any) {
+                    Toast.warn(
+                        t("panel.musicItemOptions.artworkFail", {
+                            reason: e?.message ?? String(e),
+                        }),
+                    );
+                }
             },
         },
         {
@@ -329,3 +369,5 @@ const style = StyleSheet.create({
         height: rpx(30),
     },
 });
+
+
