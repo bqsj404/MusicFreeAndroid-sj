@@ -122,3 +122,44 @@ export function toStoredPath(remotePath: string): string {
 export function toLogicalPath(remotePath: string): string {
     return replaceLastSegment(remotePath, toLogicalName);
 }
+
+/** 文件名里的非法字符 */
+const INVALID_FILENAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g;
+
+/**
+ * 净化文件名（与桌面版 `sanitizeFileName` 口径一致）。
+ *
+ * 非法字符换 `_`、折叠空白、去首尾空白与点、空结果回退「未命名」、上限 150 字符。
+ */
+export function sanitizeFileName(name?: string | null): string {
+    const cleaned = (name ?? "")
+        .replace(INVALID_FILENAME_CHARS, "_")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/^\.+/, "")
+        .replace(/\.+$/, "")
+        .trim();
+    const limited = cleaned.slice(0, 150).trim();
+    return limited || "未命名";
+}
+
+/**
+ * 组装上传用的逻辑文件名：`<歌名> - <歌手>.<ext>`
+ *
+ * 与「列目录时的解析规则」互为逆运算（按最后一个 ` - ` 分割）。
+ */
+export function buildUploadFileName(
+    title?: string | null,
+    artist?: string | null,
+    ext = "",
+): string {
+    const safeTitle = sanitizeFileName(title || "未命名");
+    const safeArtist = sanitizeFileName(artist || "");
+    const base = safeArtist ? `${safeTitle} - ${safeArtist}` : safeTitle;
+    const normalizedExt = ext
+        ? ext.startsWith(".")
+            ? ext
+            : `.${ext}`
+        : "";
+    return `${base}${normalizedExt}`;
+}
