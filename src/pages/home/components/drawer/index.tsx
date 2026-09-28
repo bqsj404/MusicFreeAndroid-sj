@@ -125,6 +125,17 @@ function HomeDrawer(props: any) {
 
     const otherSetting: ISettingOptions[] = [
         {
+            // 第 7 批 · 问题 4：下载管理从「本地音乐」的菜单里移到这里。
+            // 下载与上传都不是「本地音乐」的一个子集：下载来源可以是在线音源，
+            // 上传目标是云盘；挂在本地音乐下面会让用户以为二者是一回事。
+            // 桌面版同样是侧边栏里的独立入口。
+            icon: "arrow-down-tray",
+            title: t("downloading.managerTitle"),
+            onPress: () => {
+                navigate(ROUTE_PATH.DOWNLOADING);
+            },
+        },
+        {
             icon: "circle-stack",
             title: t("sidebar.backupAndResume"),
             onPress: () => {

@@ -168,13 +168,12 @@ export default function MainPage() {
                             });
                         },
                     },
-                    {
-                        icon: "arrow-down-tray",
-                        title: t("localMusic.downloadList"),
-                        async onPress() {
-                            navigate(ROUTE_PATH.DOWNLOADING);
-                        },
-                    },
+                    /*
+                     * 第 7 批 · 问题 4：「下载列表」入口已移到侧边栏
+                     * （`downloading.managerTitle`）。本地音乐这里不再保留，
+                     * 否则同一个页面有两个入口，而且会强化
+                     * 「下载 == 本地音乐」的错误心智。
+                     */
                 ]}>
                 {t("home.localMusic")}
             </AppBar>
