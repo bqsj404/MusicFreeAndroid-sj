@@ -1,10 +1,12 @@
 import {
     StorageKeys,
     internalSerializeKey,
+    localPluginPlatform,
     supportLocalMediaType,
 } from "@/constants/commonConst";
 import mp3Util, { IBasicMeta } from "@/native/mp3Util";
 import { addFileScheme, getFileName } from "@/utils/fileUtils.ts";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import {
     getLocalPath,
     isSameMediaItem,
@@ -33,10 +35,32 @@ export async function setup() {
     const sheet = await getStorage(StorageKeys.LocalMusicSheet);
     if (sheet) {
         let validSheet: IMusic.IMusicItem[] = [];
+        // 第 7 批 · 问题 1：历史数据里同一份文件可能有两条记录
+        // （下载入库一条、后来扫描又入一条，见 [isSameLocalFile]）。
+        // 启动时顺手合并一次，否则用户会一直看到重复的「云盘标识」条目。
+        // 保留「有在线身份」的那条 —— 它能回连音源、能换源、能重新下载，
+        // 而扫描解析出来的那条 id 是被转义过的，回连必然失败。
+        const pathIndex = new Map<string, number>();
         for (let musicItem of sheet) {
             const localPath = getLocalPath(musicItem);
-            if (localPath && (await exists(localPath))) {
+            if (!localPath || !(await exists(localPath))) {
+                continue;
+            }
+            const key = toPlainFilePath(localPath);
+            const existed = pathIndex.get(key);
+            if (existed === undefined) {
+                pathIndex.set(key, validSheet.length);
                 validSheet.push(musicItem);
+                continue;
+            }
+            // 已有一条同路径记录：谁带在线身份就留谁
+            const prev = validSheet[existed];
+            const prevHasOnlineIdentity =
+                prev.platform && prev.platform !== localPluginPlatform;
+            const curHasOnlineIdentity =
+                musicItem.platform && musicItem.platform !== localPluginPlatform;
+            if (!prevHasOnlineIdentity && curHasOnlineIdentity) {
+                validSheet[existed] = musicItem;
             }
         }
         if (validSheet.length !== sheet.length) {
@@ -49,6 +73,40 @@ export async function setup() {
     localSheetStateMapper.notify();
 }
 
+/**
+ * 是否为「同一份本地文件」。
+ *
+ * 第 7 批 · 问题 1 的根因修复。
+ *
+ * 本地库原先只按 `platform + id` 去重（[isSameMediaItem]），而同一个文件
+ * 会有**两条入库路径**、拿到的身份却不同：
+ *
+ *  - **下载入库**（`downloader`）：直接用条目原本的 id，云盘歌曲的 id
+ *    是远端路径（`/MusicFree/music/x.mp3`）；
+ *  - **扫描入库**（`importLocal` → `parseFilename`）：从文件名
+ *    `平台@id@歌名@歌手` 里解析，而 `escapeCharacter` 会把 id 里的
+ *    `/` 换成 `_`，解析回来自然对不上。
+ *
+ * 于是同一首歌在本地列表里出现两次，其中一条还顶着「云盘」这类
+ * 在线平台标签 —— 用户看到的就是「本地音乐里有个云盘标识的音乐」。
+ *
+ * 文件路径是比 id 更强的身份：同一个路径就是同一份文件。
+ */
+function isSameLocalFile(
+    a: ICommon.IMediaBase,
+    b: ICommon.IMediaBase,
+): boolean {
+    if (isSameMediaItem(a, b)) {
+        return true;
+    }
+    const pathA = getLocalPath(a);
+    const pathB = getLocalPath(b);
+    if (!pathA || !pathB) {
+        return false;
+    }
+    return toPlainFilePath(pathA) === toPlainFilePath(pathB);
+}
+
 export async function addMusic(
     musicItem: IMusic.IMusicItem | IMusic.IMusicItem[],
 ) {
@@ -57,7 +115,7 @@ export async function addMusic(
     }
     let newSheet = [...localSheet];
     musicItem.forEach(mi => {
-        if (localSheet.findIndex(_ => isSameMediaItem(mi, _)) === -1) {
+        if (newSheet.findIndex(_ => isSameLocalFile(mi, _)) === -1) {
             newSheet.push(mi);
         }
     });
@@ -72,7 +130,7 @@ function addMusicDraft(musicItem: IMusic.IMusicItem | IMusic.IMusicItem[]) {
     }
     let newSheet = [...localSheet];
     musicItem.forEach(mi => {
-        if (localSheet.findIndex(_ => isSameMediaItem(mi, _)) === -1) {
+        if (newSheet.findIndex(_ => isSameLocalFile(mi, _)) === -1) {
             newSheet.push(mi);
         }
     });
@@ -88,17 +146,16 @@ export async function removeMusic(
     musicItem: IMusic.IMusicItem,
     deleteOriginalFile = false,
 ) {
-    const idx = localSheet.findIndex(_ => isSameMediaItem(_, musicItem));
+    const idx = localSheet.findIndex(_ => isSameLocalFile(_, musicItem));
     let newSheet = [...localSheet];
     if (idx !== -1) {
         const localMusicItem = localSheet[idx];
         newSheet.splice(idx, 1);
         const localPath =
-            musicItem[internalSerializeKey]?.localPath ??
-            localMusicItem[internalSerializeKey]?.localPath;
+            getLocalPath(musicItem) ?? getLocalPath(localMusicItem);
         if (deleteOriginalFile && localPath) {
             try {
-                await unlink(localPath);
+                await unlink(toPlainFilePath(localPath));
             } catch (e: any) {
                 if (e.message !== "File does not exist") {
                     throw e;
@@ -359,7 +416,7 @@ function isLocalMusic(
     musicItem: ICommon.IMediaBase | null,
 ): IMusic.IMusicItem | undefined {
     return musicItem
-        ? localSheet.find(_ => isSameMediaItem(_, musicItem))
+        ? localSheet.find(_ => isSameLocalFile(_, musicItem))
         : undefined;
 }
 
