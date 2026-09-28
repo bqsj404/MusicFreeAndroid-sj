@@ -250,6 +250,18 @@ export interface ILanguageData {
     "downloading.status.missing": string;
     "downloading.empty": string;
     "downloading.clearDone": string;
+    "downloading.managerTitle": string;
+    "downloading.tab.download": string;
+    "downloading.tab.upload": string;
+    "downloading.upload.empty": string;
+    "downloading.upload.source.manual": string;
+    "downloading.upload.source.auto": string;
+    "downloading.upload.removeRecord": string;
+    "downloading.upload.deleteFromCloud": string;
+    "downloading.upload.removed": string;
+    "downloading.upload.deleted": string;
+    "downloading.upload.deleteConfirm": string;
+    "downloading.upload.deleteFailed": string;
 
     // 艺术家详情相关
     "artistDetail.fansCount": string; // 粉丝数量
@@ -337,6 +349,8 @@ export interface ILanguageData {
     "lyricManager.loading": string;
     "toast.lyricAlignDone": string;
     "toast.togglingSource": string;
+    "toast.playErrorGiveUp": string; // 连续多首无法播放，已暂停自动换源
+    "toast.localFileMissing": string; // 本地文件已丢失，正在跳过
     "toast.installPluginSuccess": string; // 插件安装成功
     "toast.updatePluginSuccess": string; // 插件更新成功
     "toast.installPluginFail": string; // 插件安装失败
@@ -628,6 +642,10 @@ export interface ILanguageData {
     "panel.musicItemOptions.artworkFail": string;
     "panel.musicItemOptions.album": string; // 专辑
     "panel.musicItemOptions.downloaded": string; // 已下载
+    "panel.musicItemOptions.uploadToCloud": string; // 上传到云盘
+    "panel.musicItemOptions.uploadingToCloud": string; // 正在上传到云盘
+    "panel.musicItemOptions.uploadToCloudSuccess": string; // 已上传到云盘
+    "panel.musicItemOptions.uploadToCloudFailed": string; // 上传到云盘失败
     "panel.musicItemOptions.readComment": string; // 查看评论
     "panel.musicItemOptions.deleteLocalDownload": string; // 删除本地下载
     "panel.musicItemOptions.deleteLocalDownloadConfirm": string; // 删除本地下载确认

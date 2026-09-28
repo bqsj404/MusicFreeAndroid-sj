@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import AppBar from "@/components/base/appBar";
+import MusicBar from "@/components/musicBar";
 import MusicList from "@/components/musicList";
 import StatusBar from "@/components/base/statusBar";
 import { showDialog } from "@/components/dialogs/useDialog";
@@ -191,6 +192,15 @@ export default function CloudMusic() {
                     focusGroupPrefix="cloud-"
                 />
             </HorizontalSafeAreaView>
+            {/*
+             * 第 7 批 · 问题 5：云盘音乐页原先没有播放状态栏。
+             *
+             * 云盘的取源要先把远端文件拉到本地缓存，点一下要等好几秒，
+             * 而页面底部没有任何「正在播放/正在加载」的反馈，看起来像没反应；
+             * 从云盘页点到别的页面后也回不到「正在播的是哪首」。
+             * 与本地音乐页保持一致：列表占满剩余空间，MusicBar 常驻底部。
+             */}
+            <MusicBar />
         </SafeAreaView>
     );
 }

@@ -10,7 +10,11 @@ import { getMediaUniqueKey } from "@/utils/mediaUtils";
 import FastImage from "@/components/base/fastImage";
 import Toast from "@/utils/toast";
 import LocalMusicSheet from "@/core/localMusicSheet";
-import { localMusicSheetId, musicHistorySheetId } from "@/constants/commonConst";
+import {
+    cloudPluginPlatform,
+    localMusicSheetId,
+    musicHistorySheetId,
+} from "@/constants/commonConst";
 import { ROUTE_PATH } from "@/core/router";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,6 +41,8 @@ import { getMediaExtraProperty } from "@/utils/mediaExtra";
 import lyricManager from "@/core/lyricManager";
 import { useI18N } from "@/core/i18n";
 import pluginManager from "@/core/pluginManager";
+import { isCloudDiskConfigured } from "@/core/cloudDisk/client";
+import { uploadMusicItemToCloud } from "@/core/cloudDisk/uploadFromSource";
 
 interface IMusicItemOptionsProps {
     /** 歌曲信息 */
@@ -178,6 +184,51 @@ export default function MusicItemOptions(props: IMusicItemOptionsProps) {
                         }),
                     );
                 }
+            },
+        },
+        {
+            /**
+             * 第 7 批 · 问题 6：把「传至云盘」放进统一的歌曲菜单。
+             *
+             * 这个面板是**所有列表项长按/更多**的公共入口，所以放在这里
+             * 就同时覆盖了搜索结果、推荐歌单、排行榜、歌单详情等场景 ——
+             * 用户不必先下载、再切到云盘页手动上传。
+             *
+             * 两种情况不显示：
+             *  - 未配置 WebDAV（点了只会得到一个「未配置」的错）
+             *  - 条目本身就在云盘上（云端已有它，再传一次没有意义）
+             */
+            icon: "circle-stack",
+            title: t("panel.musicItemOptions.uploadToCloud"),
+            show:
+                isCloudDiskConfigured() &&
+                musicItem.platform !== cloudPluginPlatform,
+            onPress: () => {
+                hidePanel();
+                showDialog("LoadingDialog", {
+                    title: t("panel.musicItemOptions.uploadingToCloud"),
+                    promise: uploadMusicItemToCloud(musicItem),
+                    onResolve(result: { status: string; reason?: string }) {
+                        if (result?.status === "failed") {
+                            Toast.warn(
+                                `${t("panel.musicItemOptions.uploadToCloudFailed")} ${
+                                    result.reason ?? ""
+                                }`,
+                            );
+                        } else {
+                            Toast.success(
+                                t("panel.musicItemOptions.uploadToCloudSuccess"),
+                            );
+                        }
+                    },
+                    onReject(reason: any) {
+                        Toast.warn(
+                            `${t("panel.musicItemOptions.uploadToCloudFailed")} ${
+                                reason?.message ?? reason
+                            }`,
+                        );
+                    },
+                });
             },
         },
         {

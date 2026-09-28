@@ -131,7 +131,6 @@ export default function BasicSetting() {
     const associateLyricType = useAppConfig("basic.associateLyricType");
     const showExitOnNotification = useAppConfig("basic.showExitOnNotification");
     const musicOrderInLocalSheet = useAppConfig("basic.musicOrderInLocalSheet");
-    const tryChangeSourceWhenPlayFail = useAppConfig("basic.tryChangeSourceWhenPlayFail");
 
     const { t } = useI18N();
 
@@ -216,16 +215,6 @@ export default function BasicSetting() {
                     },
                 ),
                 createRadio(
-                    t("basicSettings.musicDetailDefault"),
-                    "basic.musicDetailDefault",
-                    ["album", "lyric"],
-                    musicDetailDefault ?? "album",
-                    {
-                        album: t("basicSettings.musicDetailDefault.album"),
-                        lyric: t("basicSettings.musicDetailDefault.lyric"),
-                    },
-                ),
-                createRadio(
                     t("basicSettings.musicOrderInLocalSheet"),
                     "basic.musicOrderInLocalSheet",
                     [
@@ -279,11 +268,17 @@ export default function BasicSetting() {
                     "basic.autoPlayWhenAppStart",
                     autoPlayWhenAppStart ?? false,
                 ),
-                createSwitch(
-                    t("basicSettings.tryChangeSourceWhenPlayFail"),
-                    "basic.tryChangeSourceWhenPlayFail",
-                    tryChangeSourceWhenPlayFail ?? false,
-                ),
+                /*
+                 * 第 7 批 · 问题 7：
+                 * 这里原先还有一个「播放失败时尝试更换音源」开关
+                 * （`basic.tryChangeSourceWhenPlayFail`），与下面四态里的
+                 * `toggle` / `toggle-replace` 是同一件事，属于历史遗留的重复项。
+                 *
+                 * 现在只保留四态：它把「换源 / 换源并替换歌单 / 跳下一首 / 暂停」
+                 * 四种结果放在一处，比「一个布尔 + 一个单选」清楚得多。
+                 * 旧配置（含更早的 `basic.autoStopWhenError`）仍在
+                 * `trackPlayer.getPlayErrorMode()` 里做读取兜底，老用户不会失效。
+                 */
                 createRadio(
                     t("basicSettings.playError"),
                     "basic.playError",
