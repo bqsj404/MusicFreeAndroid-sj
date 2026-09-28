@@ -36,7 +36,10 @@ import LocalMusicSheet from "../localMusicSheet";
 import MusicSheet from "@/core/musicSheet";
 import { findLocalMusicByWorkKey } from "@/core/localMusicIndex";
 import { getSourceName } from "@/core/mediaSource";
-import toggleChain, { buildToggleGroupKey } from "@/core/playErrorChain";
+import toggleChain, {
+    buildToggleGroupKey,
+    STABLE_PLAY_MS,
+} from "@/core/playErrorChain";
 import Toast from "@/utils/toast";
 import i18n from "@/core/i18n";
 import {
@@ -89,8 +92,37 @@ class TrackPlayer extends EventEmitter<{
     // 音乐播放器服务是否启动
     private serviceInited = false;
     // 播放队列索引map
-    /** D2：换源链内部调用 play() 时置位，避免 play() 把 epoch 顶掉（会自己作废自己） */
-    private isToggling = false;
+    /**
+     * 播放失败处理的重入闸门（第 7 批 · 问题 3）。
+     *
+     * ExoPlayer 一次失败会连发多个 `PlaybackError`，而换源链内部又会
+     * `await play(...)`（失败时再次走到 `handlePlayFail`）。不设闸门的话
+     * 会并发开出多条链、每条链各弹一次「正在换源」，用户看到的就是
+     * 「通知一直弹、歌一直换」。
+     */
+    private handlePlayFailRunning = false;
+    /**
+     * 本首曲目「开始取源成功」的时间戳（0 表示尚无）。
+     * 用于判断一次失败是「刚换了源就挂」还是「稳定播了一阵才挂」，
+     * 见 `playErrorChain.STABLE_PLAY_MS`。
+     */
+    private playStartedAt = 0;
+    /**
+     * 当前曲目的**真实音源是否已就绪**（第 7 批 · 问题 2/3 的核心标志）。
+     *
+     * `play()` 的流程是「先用占位 URL 把歌放进队列（UI/通知栏立刻有信息）→
+     * 异步取源 → 取到后 `setTrackSource` 换成真 URL」。占位期间队列里是
+     * `[proposed, fakeNext]` 两首，而 `fakeNext` 是一段**能真的播放的静音**
+     * （原生侧有映射），大约 4 秒。
+     *
+     * 于是取源只要超过 4 秒（云盘要先联网解析路径、可能还要下载缓存），
+     * 静音就"播完了" → `PlaybackActiveTrackChanged` 判定为「队列末尾」
+     * → `skipToNext()` → **用户点的歌还没出声就被跳走**。
+     *
+     * 这正是「下载的李白不能播放」与「歌一直自己在切」的共同机制：
+     * 云盘/失效音源的取源耗时越长，跳得越欢。
+     */
+    private sourceReady = false;
     private playListIndexMap = createMediaIndexMap([] as IMusic.IMusicItem[]);
 
 
@@ -218,6 +250,22 @@ class TrackPlayer extends EventEmitter<{
                         evt.lastIndex === 0 &&
                         evt.track?.url === TrackPlayer.fakeAudioUrl
                     ) {
+                        /*
+                         * 第 7 批 · 问题 2/3：先确认「真的听完了」。
+                         *
+                         * `fakeNext` 是一段**能真的播放的静音**（约 4 秒），
+                         * 放在队列末尾做「列表结束」的哨兵。但取源期间队列是
+                         * `[占位, fakeNext]`，占位 URL 打不开时播放器会前进到
+                         * 静音并很快放完 —— 这条分支就会把「用户点的歌还没
+                         * 出声」误判成「听完了」，直接 `skipToNext()`。
+                         *
+                         * 云盘取源要联网（可达数秒），于是「点李白 → 自动跳到
+                         * 下一首」；一整张取源都慢的歌单就表现为「一直在切」。
+                         */
+                        if (!this.sourceReady) {
+                            trace("取源未完成，忽略占位静音的结束事件");
+                            return;
+                        }
                         trace("队列末尾，播放下一首");
                         this.emit(TrackPlayerEvents.PlayEnd);
                         if (
@@ -250,11 +298,34 @@ class TrackPlayer extends EventEmitter<{
                         return;
                     }
 
+                    /*
+                     * 「本地文件不存在」这条错误原先被无条件丢弃，于是
+                     * 用户点一首本地库里已经没文件的歌时**完全没有反应**
+                     * （既没有提示，也不会跳过）—— 这也是「下载的李白
+                     * 怎么不能播放了」的一种观感来源。
+                     *
+                     * 现在改成：**只有当当前曲目确实有本地路径时**才
+                     * 按播放失败处理（并且明确提示文件已丢失），
+                     * 其余场景（初始化阶段、fake/proposed 占位）保持原有豁免。
+                     * 处理走 `handlePlayFail`，因此照样受熔断保护，
+                     * 不会因为整个歌单都丢文件而无限跳歌。
+                     */
+                    const isFileNotFound =
+                        e.message === "android-io-file-not-found";
+                    if (isFileNotFound) {
+                        const missingLocal = getLocalPath(
+                            this.currentMusic as IMusic.IMusicItem,
+                        );
+                        if (!missingLocal) {
+                            return;
+                        }
+                        Toast.warn(i18n.t("toast.localFileMissing"));
+                    }
+
                     if (
                         currentTrack?.url !== TrackPlayer.fakeAudioUrl && currentTrack?.url !== TrackPlayer.proposedAudioUrl &&
                         (await ReactNativeTrackPlayer.getActiveTrackIndex()) === 0 &&
-                        e.message &&
-                        e.message !== "android-io-file-not-found"
+                        e.message
                     ) {
                         trace("播放出错", {
                             message: e.message,
@@ -419,9 +490,21 @@ class TrackPlayer extends EventEmitter<{
         return isSameMediaItem(musicItem, this.currentMusic);
     }
 
+    /**
+     * 播放指定歌曲（不传则重播当前曲）。
+     *
+     * @param forcePlay 强制从头开始（而非从暂停处恢复）
+     * @param options.keepToggleHistory
+     *   供**自动换源链**内部调用：保留「已试过哪些源」的痕迹，
+     *   否则链里试过的死源下一轮又会被重试一遍。
+     *   其余调用方（用户点歌 / 上下一首 / 队列切换）都不要传 ——
+     *   换了一首歌就应当按「用户接管」处理：作废在途换源链（epoch +1）、
+     *   清掉上一首的链内痕迹。
+     */
     async play(
         musicItem?: IMusic.IMusicItem | null,
         forcePlay?: boolean,
+        options?: { keepToggleHistory?: boolean },
     ): Promise<void> {
         try {
             // 如果不传参，默认是播放当前音乐
@@ -431,6 +514,16 @@ class TrackPlayer extends EventEmitter<{
             if (!musicItem) {
                 throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY);
             }
+            if (!options?.keepToggleHistory) {
+                // 第 7 批 · 问题 3：换歌即「用户/队列接管」。
+                // epoch +1 让在途换源链立刻作废（绝不把用户刚切过去的歌掰回来），
+                // 同时清掉上一首的链内痕迹。
+                toggleChain.bumpEpoch();
+                toggleChain.resetForNewTrack();
+            }
+            // 第 7 批 · 问题 2/3：进入取源阶段 —— 在拿到真源之前，
+            // 队列里的「播完」事件都只代表占位静音放完了，不能当作真的听完。
+            this.sourceReady = false;
             // 1. 移动网络禁止播放
             const localPath = getLocalPath(musicItem);
             if (
@@ -448,8 +541,13 @@ class TrackPlayer extends EventEmitter<{
                 // 获取底层播放器中的track
                 const currentTrack = await ReactNativeTrackPlayer.getTrack(0);
                 // 2.1 如果当前有源
+                //     注意排除两个占位 URL：`proposed` 是「正在取源」的标记，
+                //     `fake` 是队列末尾哨兵。把占位当成「有源」会让
+                //     `sourceReady` 被误置为 true，静音播完又会自动跳歌。
                 if (
                     currentTrack?.url &&
+                    currentTrack.url !== TrackPlayer.proposedAudioUrl &&
+                    currentTrack.url !== TrackPlayer.fakeAudioUrl &&
                     isSameMediaItem(
                         musicItem,
                         currentTrack as IMusic.IMusicItem,
@@ -474,6 +572,8 @@ class TrackPlayer extends EventEmitter<{
                         // 2.1.2 恢复播放
                         await ReactNativeTrackPlayer.play();
                     }
+                    // 队列里已经是真源，标记就绪
+                    this.sourceReady = true;
                     // 这种情况下，播放队列和当前歌曲都不需要变化
                     return;
                 }
@@ -507,6 +607,34 @@ class TrackPlayer extends EventEmitter<{
             // 5.3 插件返回音源
             let source: IPlugin.IMediaSourceResult | null = null;
 
+            /*
+             * 5.2.4 条目**自带的本地文件**（第 7 批 · 问题 2 的核心修复）。
+             *
+             * `mediaSource.ts` 里写的取源优先级是
+             *     local（条目自带文件） → localLibrary（按作品键命中本地库）
+             *       → cloud → cache → plugin
+             * 但这里原先**只实现了第二档**（下面那段「本地优先」），
+             * 第一档只在普通插件的包装层里有 —— 而「云盘」「本地」是内建插件，
+             * 会绕过包装层。
+             *
+             * 后果就是：用户点的是一首**已下载的云盘歌曲**（它自己就有本地
+             * 文件），播放器却先按「歌名+歌手」去本地库里找"同作品"，
+             * 命中了另一个同名文件（例如同目录下的试听片段 / 另一个版本），
+             * 于是"下载好的歌点开却不是它"；若那条同名文件又短，
+             * 会出现「刚点开几秒就自动跳下一首」。
+             *
+             * 自带文件永远是最准的：它就是用户点的这一条。
+             */
+            const ownLocalPath = getLocalPath(musicItem);
+            if (ownLocalPath && (await exists(ownLocalPath))) {
+                trace("自带本地文件播放", ownLocalPath);
+                source = {
+                    url: toPlayableFileUrl(ownLocalPath),
+                    sourceKind: "local",
+                    sourceName: getSourceName("local"),
+                };
+            }
+
             // 5.2.5 本地优先（D1 取源三态的第一步：本地 → 云端 → 插件）
             //
             // 为什么必须放在这一层：原先这段逻辑写在
@@ -514,10 +642,14 @@ class TrackPlayer extends EventEmitter<{
             // 「云盘」「本地」是内建插件，其 `methods` 直接是插件自身的实现，
             // 会**绕过包装层** —— 于是对云盘歌曲本地优先从来就没生效过。
             // 放在播放器的取源入口，才能对所有来源统一生效。
-            if (musicItem.platform !== localPluginPlatform) {
+            if (
+                !source &&
+                musicItem.platform !== localPluginPlatform
+            ) {
                 const localSameWork = findLocalMusicByWorkKey(
                     musicItem.title,
                     musicItem.artist,
+                    musicItem.duration,
                 );
                 if (
                     localSameWork &&
@@ -571,44 +703,21 @@ class TrackPlayer extends EventEmitter<{
                 }
                 // 5.4 没有返回源
                 if (!source && !musicItem.url) {
-                    // 插件失效的情况
-                    if (this.configService.getConfig("basic.tryChangeSourceWhenPlayFail")) {
-                        // 重试
-                        const similarMusic = await this.getSimilarMusic(
-                            musicItem,
-                            "music",
-                            () => !this.isCurrentMusic(musicItem),
-                        );
-
-                        if (similarMusic) {
-                            const similarMusicPlugin =
-                                this.pluginManagerService.getByMedia(similarMusic);
-
-                            for (let quality of qualityOrder) {
-                                if (this.isCurrentMusic(musicItem)) {
-                                    source =
-                                        (await similarMusicPlugin?.methods?.getMediaSource(
-                                            similarMusic,
-                                            quality,
-                                        )) ?? null;
-                                    // 5.4.1 获取到真实源
-                                    if (source) {
-                                        this.setQuality(quality);
-                                        break;
-                                    }
-                                } else {
-                                    // 5.4.2 已经切换到其他歌曲了，
-                                    return;
-                                }
-                            }
-                        }
-
-                        if (!source) {
-                            throw new Error(PlayFailReason.INVALID_SOURCE);
-                        }
-                    } else {
-                        throw new Error(PlayFailReason.INVALID_SOURCE);
-                    }
+                    /**
+                     * 插件失效的情况。
+                     *
+                     * 第 7 批 · 问题 7：这里原先单独读旧布尔项
+                     * `basic.tryChangeSourceWhenPlayFail`，于是「播放失败时尝试
+                     * 更换音源」开关与「播放失败时」四态里的 `toggle` 语义重叠，
+                     * 设置页出现两个控制同一件事的选项，而且两套换源代码并存
+                     * （这里一次、`runAutoToggleChain` 一次）。
+                     *
+                     * 现在统一交给 `handlePlayFail` → `runAutoToggleChain`
+                     * 处理：那条链有冷却、有链内上限、有已试源去重、有熔断，
+                     * 比这里的「一次性重试」完整得多。旧布尔项仍在
+                     * `getPlayErrorMode()` 里做读取兜底，老用户的设置不会失效。
+                     */
+                    throw new Error(PlayFailReason.INVALID_SOURCE);
                 } else {
                     source = {
                         url: musicItem.url,
@@ -631,6 +740,9 @@ class TrackPlayer extends EventEmitter<{
             trace("获取音源成功", track);
             // 9. 设置音源
             await this.setTrackSource(track as Track);
+            // 第 7 批 · 问题 3：记下这一首「取源成功」的时刻。
+            // 之后的失败若发生在 STABLE_PLAY_MS 之内，就计入熔断统计。
+            this.playStartedAt = Date.now();
 
             // 9.1 D1 音源三态：把「已合并音源标记」的 track 同步进 UI 状态。
             //
@@ -873,6 +985,8 @@ class TrackPlayer extends EventEmitter<{
             return;
         }
         await ReactNativeTrackPlayer.setQueue([clonedTrack, this.getFakeNextTrack()]);
+        // 真源已经进队列：从这一刻起，「播完」才代表真的听完了一首
+        this.sourceReady = true;
         PersistStatus.set("music.musicItem", track as IMusic.IMusicItem);
         PersistStatus.set("music.progress", 0);
         if (autoPlay) {
@@ -1004,7 +1118,17 @@ class TrackPlayer extends EventEmitter<{
     }
 
 
-    /** D2：读播放失败策略（新的四态优先，旧的布尔配置作兼容兜底） */
+    /**
+     * 读播放失败策略（新的四态优先，旧的布尔配置作兼容兜底）。
+     *
+     * 第 7 批 · 问题 7：旧版有**两个**布尔项 —— `autoStopWhenError`
+     * （出错就停）与 `tryChangeSourceWhenPlayFail`（出错就换源），
+     * 而新版四态把这两件事合成了一个选择。设置页已不再展示旧项，
+     * 但这里必须继续认它们，否则老用户升级后行为会静默变化。
+     *
+     * 优先级：四态 > 换源 > 停顿 > 跳过。
+     * 「换源」优先于「停顿」是因为它的语义更强（用户显式要求换源）。
+     */
     private getPlayErrorMode():
         | "toggle"
         | "toggle-replace"
@@ -1014,14 +1138,71 @@ class TrackPlayer extends EventEmitter<{
         if (mode) {
             return mode;
         }
+        // 兼容：旧布尔项「播放失败时尝试更换音源」≈ 四态里的 toggle
+        if (this.configService.getConfig("basic.tryChangeSourceWhenPlayFail")) {
+            return "toggle";
+        }
         // 兼容：旧布尔项 —— true 表示出错就停（≈pause），false 跳下一首（≈skip）
         return this.configService.getConfig("basic.autoStopWhenError")
             ? "pause"
             : "skip";
     }
 
-    private async handlePlayFail() {
+    /**
+     * 播放失败的总入口。
+     *
+     * 加一层**防重入**是第 7 批 · 问题 3 的核心修复之一：
+     * ExoPlayer 一次失败往往连发多个 `PlaybackError`，而 `runAutoToggleChain`
+     * 内部又会 `await this.play(...)`（失败时再次走到这里），
+     * 于是并发开出多条链、每条链各弹一次「正在换源」通知，
+     * 用户看到的就是「通知一直在弹、歌一直在换」。
+     *
+     * 有了它，链内那次 `play` 触发的失败会被直接丢弃 —— 链自己会
+     * `continue` 去试下一个源，这才是正确语义。
+     */
+    private async handlePlayFail(): Promise<void> {
+        if (this.handlePlayFailRunning) {
+            return;
+        }
+        this.handlePlayFailRunning = true;
+        try {
+            await this.doHandlePlayFail();
+        } finally {
+            this.handlePlayFailRunning = false;
+        }
+    }
+
+    private async doHandlePlayFail(): Promise<void> {
         const mode = this.getPlayErrorMode();
+
+        // 刚换源成功不久：这条错误更可能是**上一份源**的残留事件
+        // （ExoPlayer 的 error 回调与 track 切换存在竞态），忽略即可。
+        if (toggleChain.inSuccessGrace()) {
+            return;
+        }
+
+        // 本次失败之前已经稳定播了一段时间 → 说明这首源本身是好的，
+        // 本次属于偶发（网络抖动 / 音源暂时 5xx），不该计入熔断统计。
+        //
+        // 门槛必须存在：若「能进 Playing 就清零」，那么「每首都只播一秒
+        // 就失败」的病态源会永远清零计数，熔断闸门形同虚设 ——
+        // 那正是用户看到的「歌一直在切」。
+        if (
+            this.playStartedAt > 0 &&
+            Date.now() - this.playStartedAt >= STABLE_PLAY_MS
+        ) {
+            toggleChain.resetErrors();
+        }
+
+        // 熔断闸门：连续失败到上限就停下来把控制权还给用户。
+        // 没有这一步时，`skipToNext` 会让「整张死源歌单」无限跳下去
+        // （每跳一首都会重置冷却，于是又能开新链 —— 死循环）。
+        if (toggleChain.recordError()) {
+            toggleChain.stop();
+            await this.pause();
+            Toast.warn(i18n.t("toast.playErrorGiveUp"));
+            return;
+        }
 
         if (mode === "pause") {
             await this.pause();
@@ -1029,12 +1210,16 @@ class TrackPlayer extends EventEmitter<{
         }
 
         if (mode === "toggle" || mode === "toggle-replace") {
-            const ok = await this.runAutoToggleChain(mode);
-            if (ok) {
+            const outcome = await this.runAutoToggleChain(mode);
+            if (outcome === "toggled") {
                 return;
             }
-            // 无可换音源 → 沿用 skip 的兜底；
-            // 但用户点过「停止换源」时不再自动跳歌，只暂停
+            // 没能开链（已有链在跑 / 用户已接管）：本次错误不追加动作，
+            // 否则「重复上报的错误事件」会被当成新故障去跳歌。
+            if (outcome === "rejected") {
+                return;
+            }
+            // 用户点过「停止换源」时不再自动跳歌，只暂停
             if (toggleChain.isStopped()) {
                 await this.pause();
                 return;
@@ -1052,16 +1237,34 @@ class TrackPlayer extends EventEmitter<{
      * **冷却**（避免错误事件密集开出多条链）、**链内最多 3 次**、
      * 按**歌曲组键**去重（换源后 id/platform 会变）、
      * **epoch 失效即中止**（用户主动接管后绝不把歌掰回去）。
+     *
+     * 返回三态而不是布尔（第 7 批 · 问题 3 的修复）：
+     *  - `"toggled"`  换源成功，调用方直接返回
+     *  - `"exhausted"` 链跑完了但没找到能播的源 → 调用方按策略跳歌
+     *  - `"rejected"`  **压根没开链**（冷却中等不到 / 用户已停止）
+     *                  → 调用方不能跳歌，否则重复的错误事件会被当成
+     *                  新故障，越跳越快，正是「一直在切换」的成因
      */
     private async runAutoToggleChain(
         mode: "toggle" | "toggle-replace",
-    ): Promise<boolean> {
+    ): Promise<"toggled" | "exhausted" | "rejected"> {
         const musicItem = this.currentMusic;
         if (!musicItem || toggleChain.isStopped()) {
-            return false;
+            return "rejected";
         }
+
+        // 冷却中不直接放弃，而是等到冷却结束再开链。
+        // 直接返回会让「同一故障的第二次上报」无人处理，界面停在失败态。
+        if (toggleChain.inCooldown()) {
+            await delay(toggleChain.getRemainingCooldown() + 50);
+            // 等待期间用户可能已经切歌/接管了
+            if (!this.isCurrentMusic(musicItem) || toggleChain.isStopped()) {
+                return "rejected";
+            }
+        }
+
         if (!toggleChain.tryStartChain()) {
-            return false;
+            return "rejected";
         }
 
         const epoch = toggleChain.getEpoch();
@@ -1070,14 +1273,16 @@ class TrackPlayer extends EventEmitter<{
         // Android 这里先用提示让换源过程可见。
         // 停止能力已由 chain.stop() 提供，待有合适的常驻 UI 再挂上。
         Toast.warn(i18n.t("toast.togglingSource"));
+        // 只以 epoch 与 stopped 判「中止」：
+        // `this.play(similar)` 必然把 currentMusic 换成 similar，
+        // 若把 `!isCurrentMusic(musicItem)` 也算中止，链会自己把自己掐死。
+        // 「用户切歌」在 `play()` 里会 bumpEpoch，已由 epoch 覆盖。
         const isAborted = () =>
-            epoch !== toggleChain.getEpoch() ||
-            !this.isCurrentMusic(musicItem) ||
-            toggleChain.isStopped();
+            epoch !== toggleChain.getEpoch() || toggleChain.isStopped();
 
         while (toggleChain.canAttempt()) {
             if (isAborted()) {
-                return false;
+                return "rejected";
             }
 
             const similar = await this.getSimilarMusic(
@@ -1098,14 +1303,18 @@ class TrackPlayer extends EventEmitter<{
             toggleChain.markTriedPlugin(similar.platform);
 
             try {
-                await this.play(similar as IMusic.IMusicItem, true);
+                // keepToggleHistory：链内换源不能清掉「已试过哪些源」，
+                // 否则下一轮会把同一个死源再试一遍。
+                await this.play(similar as IMusic.IMusicItem, true, {
+                    keepToggleHistory: true,
+                });
             } catch (e) {
                 // 换源本身失败，继续试下一个
                 continue;
             }
 
             if (epoch !== toggleChain.getEpoch()) {
-                return false;
+                return "rejected";
             }
             if (this.isCurrentMusic(similar as IMusic.IMusicItem)) {
                 toggleChain.markToggleSuccess();
@@ -1124,10 +1333,10 @@ class TrackPlayer extends EventEmitter<{
                         // 替换失败不影响本次播放
                     }
                 }
-                return true;
+                return "toggled";
             }
         }
-        return false;
+        return "exhausted";
     }
 
     /**

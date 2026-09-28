@@ -130,4 +130,41 @@ describe("ToggleChainState", () => {
         // epoch 不回退 —— 回退会让已作废的旧链重新"有效"
         expect(state.getEpoch()).toBe(epoch);
     });
+
+    /**
+     * 第 7 批 · 问题 3 的回归点。
+     *
+     * `resetForNewTrack` 是在 `skipToNext` 路径上被调用的，而 `skipToNext`
+     * 又正是熔断前的兜底动作。若它顺手把连续错误清零，「一整张死源歌单」
+     * 就会一直跳下去而永远到不了上限 —— 用户看到的就是
+     * 「换源通知一直弹、播放的歌一直在切」。
+     */
+    it("切歌不得清掉连续错误计数（否则熔断永远不触发）", () => {
+        const state = new ToggleChainState();
+        state.recordError();
+        state.recordError();
+        expect(state.getConsecutiveErrors()).toBe(2);
+
+        state.resetForNewTrack();
+
+        // 关键：计数必须还留着，下一首再失败就该熔断
+        expect(state.getConsecutiveErrors()).toBe(2);
+        expect(state.recordError()).toBe(true);
+    });
+
+    it("冷却剩余时间随开链收敛到 0", () => {
+        const state = new ToggleChainState();
+        const start = 5_000_000;
+        state.tryStartChain(start);
+        expect(state.getRemainingCooldown(start)).toBe(AUTO_TOGGLE_COOLDOWN_MS);
+        expect(
+            state.getRemainingCooldown(start + AUTO_TOGGLE_COOLDOWN_MS - 1),
+        ).toBe(1);
+        expect(
+            state.getRemainingCooldown(start + AUTO_TOGGLE_COOLDOWN_MS),
+        ).toBe(0);
+        expect(
+            state.getRemainingCooldown(start + AUTO_TOGGLE_COOLDOWN_MS + 999),
+        ).toBe(0);
+    });
 });

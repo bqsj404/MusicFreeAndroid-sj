@@ -23,6 +23,14 @@ export const AUTO_TOGGLE_MAX_PLAY_ATTEMPTS = 3;
 export const MAX_CONSECUTIVE_ERRORS = 3;
 /** 刚换源成功后的宽限期：此时的 error 更可能是上一份源的残留 */
 export const TOGGLE_SUCCESS_GRACE_MS = 5000;
+/**
+ * 「稳定播放」门槛：本次失败之前已经播了这么久，就不计入熔断统计。
+ *
+ * 为什么要有这个门槛（第 7 批 · 问题 3）：如果简单地「能播就清零」，
+ * 那么「每首都只播一秒就失败」的病态源会永远把计数清零，
+ * 熔断闸门形同虚设 —— 用户看到的就是「歌一直在切」。
+ */
+export const STABLE_PLAY_MS = 10000;
 
 /**
  * 歌曲组键：**歌名 + 歌手**归一化。
@@ -79,6 +87,12 @@ export class ToggleChainState {
     /** 是否处于冷却期（不可开新链） */
     inCooldown(now = Date.now()): boolean {
         return now - this.lastChainAt < AUTO_TOGGLE_COOLDOWN_MS;
+    }
+
+    /** 距离冷却结束还有多久（毫秒）；已结束返回 0 */
+    getRemainingCooldown(now = Date.now()): number {
+        const remain = AUTO_TOGGLE_COOLDOWN_MS - (now - this.lastChainAt);
+        return remain > 0 ? remain : 0;
     }
 
     /**
@@ -184,13 +198,22 @@ export class ToggleChainState {
         return this.stopped;
     }
 
-    /** 开始新一轮（切歌时调用，清掉链内痕迹但保留 epoch） */
+    /**
+     * 开始新一轮（切歌时调用）。
+     *
+     * 只清「链内痕迹」，**不清连续错误计数** —— 这一点是第 7 批 · 问题 3
+     * 的关键：`handlePlayFail` 的兜底动作是 `skipToNext()`，若切歌时把
+     * 连续错误清零，「一整张死源歌单」就会永远跳过而永不计满上限，
+     * 表现就是用户看到的「换源通知一直弹、播放的歌一直切」。
+     *
+     * 错误计数只由两件事归零：真正播起来了（[markToggleSuccess]），
+     * 或用户主动接管（`trackPlayer` 会调用 [resetErrors]）。
+     */
     resetForNewTrack() {
         this.attemptsInChain = 0;
         this.triedGroupKeys.clear();
         this.triedPlugins.clear();
         this.stopped = false;
-        this.resetErrors();
     }
 }
 
