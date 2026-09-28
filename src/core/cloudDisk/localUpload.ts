@@ -8,6 +8,7 @@
  */
 import LocalMusicSheet from "@/core/localMusicSheet";
 import { getLocalPath } from "@/utils/mediaUtils";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import { cloudPluginPlatform } from "@/constants/commonConst";
 import { buildMediaNameKey } from "@/core/mediaNameKey";
 import { listCloudFiles, basename, extname, parseCloudFileName } from "./index";
@@ -25,10 +26,8 @@ export interface IUploadTasksResult {
     errors: string[];
 }
 
-/** 去掉 file:// 前缀 */
-function toPlainPath(path: string): string {
-    return path.startsWith("file://") ? decodeURIComponent(path.slice(7)) : path;
-}
+/** 去掉 file:// 前缀（统一实现见 `@/utils/fileUrl`） */
+const toPlainPath = toPlainFilePath;
 
 
 /** 收集本地音乐库里的可上传任务（按本地路径去重） */

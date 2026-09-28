@@ -8,6 +8,7 @@ declare const expect: (actual: any) => {
 import {
     SourceMatchLevel,
     isDurationClose,
+    isDurationConflict,
     isMatched,
     isPreciseMatch,
     matchSourceLevel,
@@ -164,5 +165,34 @@ describe("isDurationClose", () => {
     it("缺时长时不算接近（不因此误判）", () => {
         expect(isDurationClose(undefined, 100)).toBe(false);
         expect(isDurationClose(0, 0)).toBe(false);
+    });
+});
+
+/**
+ * 第 7 批 · 问题 2：本地优先的「版本判定」。
+ *
+ * 与 `isDurationClose` 的语义**相反**且更宽：那个问「够不够近」，
+ * 这个问「是不是差得太离谱」。关键是**缺信息时不否决** ——
+ * 本地文件常常没有时长元数据，若按 isDurationClose 的 false 去处理，
+ * 会把正常的本地优先也一并挡掉。
+ */
+describe("isDurationConflict", () => {
+    it("4 秒试听片段 vs 4 分钟完整版 → 判为不同版本", () => {
+        expect(isDurationConflict(4, 240)).toBe(true);
+    });
+
+    it("电台版比专辑版长十几秒 → 仍算同一首（容差 30s）", () => {
+        expect(isDurationConflict(240, 255)).toBe(false);
+    });
+
+    it("缺任一侧时长时不否决", () => {
+        expect(isDurationConflict(undefined, 240)).toBe(false);
+        expect(isDurationConflict(240, 0)).toBe(false);
+        expect(isDurationConflict(0, 0)).toBe(false);
+    });
+
+    it("容差可覆盖（本地用 30s，换源侧用 5s）", () => {
+        expect(isDurationConflict(240, 250, 5)).toBe(true);
+        expect(isDurationConflict(240, 250, 30)).toBe(false);
     });
 });

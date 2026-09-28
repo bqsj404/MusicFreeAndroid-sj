@@ -25,7 +25,8 @@ import RNFS from "react-native-fs";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
 import { buildMediaNameKey } from "@/core/mediaNameKey";
-import { keyboardLog } from "@/core/keyboard/native";
+import { toPlainFilePath } from "@/utils/fileUrl";
+import { devLog } from "@/utils/log";
 import {
     detectContainer,
     guessContainerByExt,
@@ -67,12 +68,12 @@ export interface IMediaFileRecord {
     registeredAt: number;
 }
 
-/** 去掉 `file://` 前缀 */
-export function toPlainPath(path: string): string {
-    return path.startsWith("file://")
-        ? decodeURIComponent(path.slice(7))
-        : path;
-}
+/**
+ * 去掉 `file://` 前缀（统一实现见 `@/utils/fileUrl`）。
+ *
+ * 保留这里的导出名，避免破坏既有调用方。
+ */
+export const toPlainPath = toPlainFilePath;
 
 /** 取扩展名（含点，如 `.mp3`） */
 function extnameOf(path: string): string {
@@ -208,10 +209,12 @@ export async function registerExistingFile(
         registeredAt: Date.now(),
     };
     registerMediaFile(record);
-    // 登记是静默的基础设施操作，留一条可观测日志（排查「本地已有文件却没命中」时用）
-    keyboardLog(
-        "MediaFile",
-        `registered ${record.container} workKey=${record.workKey} mismatch=${record.extMismatch} path=${plain}`,
+    // 登记是静默的基础设施操作，留一条可观测日志（排查「本地已有文件却没命中」时用）。
+    // 走 devLog 而不是键盘模块的日志通道 —— 这里与键盘毫无关系，
+    // 借用它的通道会让「按 trace 级别能看到的日志」被错误地归类到键盘开关下。
+    devLog(
+        "info",
+        `[MediaFile] registered ${record.container} workKey=${record.workKey} mismatch=${record.extMismatch} path=${plain}`,
     );
     return record;
 }

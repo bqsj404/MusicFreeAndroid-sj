@@ -13,6 +13,7 @@ import RNFS, {
 import { errorLog } from "./log";
 import path from "path-browserify";
 import resolveAssetSource from "react-native/Libraries/Image/resolveAssetSource";
+import { toPlayableFileUrl as playableFileUrl } from "./fileUrl";
 
 const galleryBasePath = `${PicturesDirectoryPath}/MusicFree/`;
 
@@ -129,25 +130,18 @@ export function addFileScheme(fileName: string) {
 /**
  * 转成**可交给播放器**的 file URL（会做百分号编码）。
  *
- * 为什么需要它：`addFileScheme` 只是简单拼 `file://`，不处理空格 / 中文 / `#` / `?`。
- * 这类路径交给 ExoPlayer 会因 URI 解析失败而播放报错
- * （日志里表现为 `MalformedURLException: unknown protocol: ...`），
- * 现象是「含空格或中文的本地文件点了没反应 / 直接 ERROR」。
- * 实测对比：`test-local.wav` 可播，`李白 - 李荣浩.wav` 必失败。
+ * 实现已抽到纯模块 [`@/utils/fileUrl`]（可被 jest 直接覆盖，见
+ * `src/utils/__tests__/fileUrl.test.ts`）。这里只做转发，保持既有调用点不变。
+ *
+ * 历史：本函数原先只处理「以 `/` 开头的裸路径」，而调用方传进来的
+ * localPath 一律已带 `file://`（`addFileScheme` 加的），于是编码分支
+ * 永远不生效 —— 含中文/空格的本地文件必然播放失败（第 7 批 · 问题 2）。
  *
  * **注意**：文件系统操作（`RNFS.exists` / `unlink` 等）仍必须用原始路径，
  * 所以没有改动 `addFileScheme`，只在「喂给播放器」的地方使用本函数。
  */
 export function toPlayableFileUrl(fileName: string) {
-    if (!fileName.startsWith("/")) {
-        return fileName;
-    }
-    // encodeURI 会编码空格与中文，但不编码 `#` 与 `?` —— 这两个字符
-    // 在文件名里合法、在 URL 里却是分隔符，必须单独处理。
-    const encoded = encodeURI(fileName)
-        .replace(/#/g, "%23")
-        .replace(/\?/g, "%3F");
-    return `file://${encoded}`;
+    return playableFileUrl(fileName);
 }
 
 export function addRandomHash(url: string) {

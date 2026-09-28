@@ -1,5 +1,6 @@
 import pathConst from "@/constants/pathConst";
 import { toPlayableFileUrl } from "@/utils/fileUtils";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import { getMediaExtraProperty, patchMediaExtra } from "@/utils/mediaExtra";
 import { getMediaUniqueKey } from "@/utils/mediaUtils";
 import { copyFile, exists, mkdir, unlink } from "react-native-fs";
@@ -37,10 +38,15 @@ function extOf(uri: string): string {
         : "jpg";
 }
 
-/** 去掉 `file://` 前缀（RNFS 多数接口吃纯路径） */
-function toPlainPath(uri: string): string {
-    return uri.startsWith("file://") ? decodeURIComponent(uri.slice(7)) : uri;
-}
+/**
+ * 去掉 `file://` 前缀（RNFS 多数接口吃纯路径）。
+ *
+ * 统一走 [`@/utils/fileUrl`] 的实现：项目里这段逻辑一度散在 6 个文件里
+ * 各写一遍（artwork / mediaFileRegistry / localMusicScan / cloudDisk 的三个
+ * upload 模块），第 7 批修 `file://` 编码缺陷时正是靠「逐处核对」才没漏掉，
+ * 这种重复属于明确的维护风险。
+ */
+const toPlainPath = toPlainFilePath;
 
 /**
  * 取条目该显示的封面。

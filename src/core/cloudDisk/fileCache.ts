@@ -13,6 +13,7 @@
  */
 import RNFS from "react-native-fs";
 import pathConst from "@/constants/pathConst";
+import { toPlayableFileUrl } from "@/utils/fileUrl";
 import { createCloudDiskClient } from "./client";
 import { basename } from "./index";
 
@@ -61,7 +62,14 @@ export async function ensureCloudFileCached(
         return null;
     }
     const filePath = `${CLOUD_CACHE_DIR}${cacheFileName(remotePath)}`;
-    const fileUri = `file://${filePath}`;
+    /*
+     * 交给播放器的一律用 [toPlayableFileUrl]（会做百分号编码）：
+     * 缓存名保留了远端原名（含中文/空格），而 ExoPlayer 拿到未编码的
+     * `file://` URL 会 `MalformedURLException` —— 与本地音乐那条
+     * 「下载的李白播不了」是同一个根因（第 7 批 · 问题 2）。
+     * 下面的文件系统操作（exists/stat/unlink）继续用未编码的 filePath。
+     */
+    const fileUri = toPlayableFileUrl(filePath);
 
     // 已有缓存且大小一致 → 直接复用
     try {

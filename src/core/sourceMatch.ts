@@ -183,3 +183,36 @@ export function isDurationClose(
     return Math.abs(a - b) <= tolerance;
 }
 
+/**
+ * 「本地同作品多个版本」的判定容差（秒）。
+ *
+ * 比换源的 5 秒宽松得多：这里只用来在**多个同名本地文件**之间排优先级，
+ * 宁可放过也不要错杀（同一首歌的电台版/专辑版差十几秒仍是用户要的那首），
+ * 而真正要挡的是「4 秒试听片段 vs 4 分钟完整版」这种量级的差异。
+ */
+export const LOCAL_VERSION_TOLERANCE_SEC = 30;
+
+/**
+ * 两侧时长都已知、且差距明显 → 判为**不同版本**。
+ *
+ * 第 7 批 · 问题 2：本地优先原先只比「歌名 + 歌手」，
+ * 于是同名但完全不同版本的本地文件会把在线/已下载的正确音源挤掉。
+ * 任一侧时长未知（0 / undefined）时一律返回 `false` —— **不否决**，
+ * 因为「不知道」不等于「不匹配」。
+ */
+export function isDurationConflict(
+    a?: number | null,
+    b?: number | null,
+    tolerance = LOCAL_VERSION_TOLERANCE_SEC,
+): boolean {
+    if (
+        typeof a !== "number" ||
+        typeof b !== "number" ||
+        a <= 0 ||
+        b <= 0
+    ) {
+        return false;
+    }
+    return Math.abs(a - b) > tolerance;
+}
+

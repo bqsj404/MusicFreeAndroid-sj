@@ -20,6 +20,7 @@ import Config from "@/core/appConfig";
 import LocalMusicSheet from "@/core/localMusicSheet";
 import Backup from "@/core/backup";
 import { getLocalPath } from "@/utils/mediaUtils";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import { cloudPluginPlatform } from "@/constants/commonConst";
 import { buildMediaNameKey } from "@/core/mediaNameKey";
 import RNFS from "react-native-fs";
@@ -65,10 +66,8 @@ function getPendingAt(): number {
 }
 
 
-/** 去掉 file:// 前缀 */
-function toPlainPath(path: string): string {
-    return path.startsWith("file://") ? decodeURIComponent(path.slice(7)) : path;
-}
+/** 去掉 file:// 前缀（统一实现见 `@/utils/fileUrl`） */
+const toPlainPath = toPlainFilePath;
 
 /** 远端逻辑路径 → 逻辑文件名 */
 function logicalNameOf(remotePath: string): string {

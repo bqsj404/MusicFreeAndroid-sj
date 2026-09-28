@@ -18,12 +18,14 @@
  */
 import LocalMusicSheet from "@/core/localMusicSheet";
 import { getLocalPath } from "@/utils/mediaUtils";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import {
     buildMediaNameKey,
     isUnknownArtist,
     normalizeTitleKey,
 } from "@/core/mediaNameKey";
 import { findFileForMedia } from "@/core/mediaFileRegistry";
+import { isDurationConflict } from "@/core/sourceMatch";
 
 export {
     buildMediaNameKey,
@@ -43,13 +45,20 @@ export {
  * （例如从云盘播放后自动入库、随后缓存被清理），
  * 若先命中这种条目，调用方的 `exists` 检查会失败，于是"本地优先"被白白错过。
  *
- * @param title  歌名
- * @param artist 歌手
+ * @param title    歌名
+ * @param artist   歌手
+ * @param duration 期望时长（秒，可选）。
+ *                 **第 7 批 · 问题 2**：同一首歌名在本地可能有多个版本
+ *                 （试听片段、Live、翻唱、不同码率的转码），只按「歌名+歌手」
+ *                 会命中最先入库的那一个。给了期望时长后，会优先返回
+ *                 **时长接近**的那条，把"点开却不是这首"的概率降下来。
+ *                 时长未知（为 0/undefined）时不做筛选，行为与从前一致。
  * @returns 本地文件路径（file:// 或绝对路径）；未命中返回 null
  */
 export function findLocalMusicByWorkKey(
     title?: string | null,
     artist?: string | null,
+    duration?: number | null,
 ): string | null {
     const titleKey = normalizeTitleKey(title);
     if (!titleKey) {
@@ -59,7 +68,15 @@ export function findLocalMusicByWorkKey(
     // 1. 文件真值层（可信度最高）
     const recorded = findFileForMedia(title, artist);
     if (recorded?.path) {
-        return recorded.path;
+        // 真值层不存时长，无法做版本优选；但若内存清单里能找到
+        // 同一路径的条目且时长对不上，就说明真值层命中的是另一个版本。
+        const conflicted = isConflictedWithLocalSheet(
+            recorded.path,
+            duration,
+        );
+        if (!conflicted) {
+            return recorded.path;
+        }
     }
 
     // 2. 兜底：内存清单
@@ -76,6 +93,8 @@ export function findLocalMusicByWorkKey(
     // 目标作品键（歌手缺失时形如 `晴天|`）
     const wantedKey = buildMediaNameKey(title, artist);
     const fallbackByTitle: string[] = [];
+    /** 同作品但时长不接近的候选，作为最后兜底 */
+    const weakCandidates: string[] = [];
 
     for (const item of list) {
         if (normalizeTitleKey(item.title) !== titleKey) {
@@ -87,6 +106,10 @@ export function findLocalMusicByWorkKey(
         }
         // 1) 作品键精确命中
         if (buildMediaNameKey(item.title, item.artist) === wantedKey) {
+            if (isDurationConflict(duration, item.duration)) {
+                weakCandidates.push(path);
+                continue;
+            }
             return path;
         }
         // 2) 任一侧歌手未知时，收集「同歌名」候选，最后要求唯一
@@ -95,6 +118,41 @@ export function findLocalMusicByWorkKey(
         }
     }
 
-    return fallbackByTitle.length === 1 ? fallbackByTitle[0] : null;
+    if (fallbackByTitle.length === 1) {
+        return fallbackByTitle[0];
+    }
+    // 3) 只剩"同名但时长对不上"的候选时仍然返回 ——
+    //    总比让用户什么都听不到好；时长只是优选而非硬门槛。
+    return weakCandidates.length ? weakCandidates[0] : null;
+}
+
+/**
+ * 真值层命中的路径，是否与内存清单里同路径条目的时长冲突。
+ * 真值层记录不带时长，只能反查内存清单拿；查不到就不否决。
+ */
+function isConflictedWithLocalSheet(
+    path: string,
+    expectedDuration?: number | null,
+): boolean {
+    if (
+        typeof expectedDuration !== "number" ||
+        expectedDuration <= 0
+    ) {
+        return false;
+    }
+    let list: IMusic.IMusicItem[] = [];
+    try {
+        list = LocalMusicSheet.getMusicList() ?? [];
+    } catch (e) {
+        return false;
+    }
+    const plain = toPlainFilePath(path);
+    const hit = list.find(item => {
+        const itemPath = getLocalPath(item);
+        return !!itemPath && toPlainFilePath(itemPath) === plain;
+    });
+    return (
+        !!hit && isDurationConflict(expectedDuration, hit.duration)
+    );
 }
 

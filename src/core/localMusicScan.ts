@@ -17,6 +17,7 @@ import Config from "@/core/appConfig";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
 import { addFileScheme } from "@/utils/fileUtils";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import RNFS, { readDir } from "react-native-fs";
 
 const store = getOrCreateMMKV("localMusic.scan");
@@ -170,9 +171,8 @@ export async function collectAudioFiles(
     const result: string[] = [];
     // D12：排除目录（绝对路径前缀匹配），跳过录音/播客/有声书等
     const excluded = getExcludedPaths();
-    /** 归一化：去 file:// 前缀，便于与配置里的绝对路径比较 */
-    const plain = (p: string) =>
-        p.startsWith("file://") ? decodeURIComponent(p.slice(7)) : p;
+    /** 归一化：去 file:// 前缀，便于与配置里的绝对路径比较（统一实现见 `@/utils/fileUrl`） */
+    const plain = toPlainFilePath;
     const isExcluded = (p: string) => {
         if (!excluded.length) {
             return false;

@@ -17,6 +17,7 @@ import {
 } from "./zoteroDavCompat";
 import { basename, extname, parseCloudFileName } from "./index";
 import Base64 from "@/utils/base64";
+import { toPlainFilePath } from "@/utils/fileUrl";
 import RNFS from "react-native-fs";
 
 /** 目录存在则不动，不存在则递归创建（缺哪级建哪级） */
@@ -96,10 +97,8 @@ export interface IUploadResult {
     errors: string[];
 }
 
-/** 去掉 file:// 前缀 */
-function toPlainPath(path: string): string {
-    return path.startsWith("file://") ? decodeURIComponent(path.slice(7)) : path;
-}
+/** 去掉 file:// 前缀（统一实现见 `@/utils/fileUrl`） */
+const toPlainPath = toPlainFilePath;
 
 /**
  * 上传一首本地文件到云盘。
